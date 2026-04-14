@@ -1,0 +1,10 @@
+services:
+  zmanim-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${ZT_PORT:-8501}:8501"
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped

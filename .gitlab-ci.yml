@@ -1,0 +1,87 @@
+# ============================================================
+# Zmanim Tracker — GitLab CI/CD Pipeline
+# ============================================================
+
+stages:
+  - lint
+  - test
+  - build
+  - docker
+
+# ============================================================
+# Shared config: Python 3.13 with uv
+# ============================================================
+.python-setup:
+  image: python:3.13-slim
+  before_script:
+    - pip install uv
+    - uv pip install --system -r pyproject.toml
+    - uv pip install --system ".[dev]"
+
+# ============================================================
+# Stage 1: Lint (ruff)
+# ============================================================
+lint:
+  stage: lint
+  extends: .python-setup
+  script:
+    - ruff check .
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(dev|staging|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|staging|main)$/
+
+# ============================================================
+# Stage 2: Test + Coverage (100% gate)
+# Coverage threshold enforced in pyproject.toml via
+# --cov-fail-under=100. If coverage drops below 100%,
+# this job fails and the build stage is blocked.
+# ============================================================
+test:
+  stage: test
+  extends: .python-setup
+  script:
+    - pytest --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml --junitxml=junit.xml
+  needs: [lint]
+  coverage: '/TOTAL.*\s+(\d+)%/'
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(dev|staging|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|staging|main)$/
+
+# ============================================================
+# Stage 3: Build (gated on test coverage)
+# ============================================================
+build:
+  stage: build
+  extends: .python-setup
+  script:
+    - uv build
+  needs: [test]
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+  rules:
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(dev|staging|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|staging|main)$/
+
+# ============================================================
+# Stage 4: Docker Build
+# Verify the Dockerfile still builds.
+# ============================================================
+docker:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:24-dind
+  needs: [build]
+  script:
+    - docker build -t zmanim-tracker:${CI_COMMIT_SHORT_SHA} .
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(staging|main)$/

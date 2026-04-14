@@ -1,23 +1,22 @@
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from typing import Optional
-import subprocess
-import os
-import sys
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
+import pgeocode
 import plotly.graph_objects as go
 import requests
 import streamlit as st
-from timezonefinder import TimezoneFinder
-import pgeocode
-from zoneinfo import ZoneInfo
 from astral import Observer
-from astral.sun import dawn, dusk, sunrise, sunset, noon
+from astral.sun import dawn, dusk, noon, sunrise, sunset
+from timezonefinder import TimezoneFinder
 
 
 @dataclass(frozen=True)
@@ -68,8 +67,8 @@ class ZmanimRow:
 
     chatzot_halaila: datetime
 
-    candle_lighting: Optional[datetime]
-    shabbat_ends: Optional[datetime]
+    candle_lighting: datetime | None
+    shabbat_ends: datetime | None
 
 
 class SolarAngleSolver:
@@ -110,12 +109,12 @@ class SolarAngleSolver:
 
 
 class LocationResolver:
-    def __init__(self):
+    def __init__(self) -> None:
         self.tz_finder = TimezoneFinder()
         self.latitude_longitude_regex = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?)\s*[, ]\s*([+-]?\d+(?:\.\d+)?)\s*$")
         self.zipcode_regex = re.compile(r"^\s*(\d{5})(?:-\d{4})?\s*$")
 
-    def resolve(self, location_input: str):
+    def resolve(self, location_input: str) -> Location:
         location_input = (location_input or "").strip()
         if not location_input:
             raise ValueError("Location input is empty.")
@@ -140,7 +139,7 @@ class LocationResolver:
         tz = self.timezone_for(lat, lon)
         return Location(label=label, latitude=lat, longitude=lon, timezone=tz)
 
-    def try_parse_latlon(self, s: str):
+    def try_parse_latlon(self, s: str) -> tuple[float, float] | None:
         m = self.latitude_longitude_regex.match(s)
         if not m:
             return None
@@ -153,11 +152,11 @@ class LocationResolver:
 
         return lat, lon
 
-    def try_parse_zip(self, s: str):
+    def try_parse_zip(self, s: str) -> str | None:
         m = self.zipcode_regex.match(s)
         return m.group(1) if m else None
 
-    def resolve_zip(self, zip_code: str):
+    def resolve_zip(self, zip_code: str) -> Location:
         nomi = pgeocode.Nominatim("us")
         rec = nomi.query_postal_code(zip_code)
         if rec is not None and getattr(rec, "latitude", None) and getattr(rec, "longitude", None):
@@ -172,7 +171,7 @@ class LocationResolver:
         tz = self.timezone_for(lat, lon)
         return Location(label=label, latitude=lat, longitude=lon, timezone=tz)
 
-    def resolve_nominatim(self, query: str):
+    def resolve_nominatim(self, query: str) -> tuple[float, float, str]:
         url = "https://nominatim.openstreetmap.org/search"
         headers = {"User-Agent": "Zmanim_Trackerv0.0.1"}
         params = {"q": query, "format": "json", "limit": 1}
@@ -192,13 +191,13 @@ class LocationResolver:
         label = item.get("display_name") or query
         return lat, lon, label
 
-    def timezone_for(self, lat: float, lon: float):
+    def timezone_for(self, lat: float, lon: float) -> str:
         tz = self.tz_finder.timezone_at(lat=lat, lng=lon)
         tz = self.require_iana_timezone(tz)
         return tz
 
     @staticmethod
-    def require_iana_timezone(tz_name: Optional[str]):
+    def require_iana_timezone(tz_name: str | None) -> str:
         if not tz_name:
             return "UTC"
 
@@ -222,7 +221,7 @@ class ZmanimCalculatorAngleBased:
         candle_lighting_offset_min: int = 18,
         shabbat_end_offset_min: int = 0,
         shabbat_end_basis: str = "tzais_three_stars",  # or "tzais_civil_end"
-    ):
+    ) -> None:
         self.alos_astronomical_edge_deg = float(alos_astronomical_edge_deg)
         self.alos_nautical_edge_deg = float(alos_nautical_edge_deg)
         self.misheyakir_deg = float(misheyakir_deg)
@@ -313,10 +312,10 @@ class ZmanimCalculatorAngleBased:
 
 
 class ZmanimDataBuilder:
-    def __init__(self, zmanim_calculator: ZmanimCalculatorAngleBased):
+    def __init__(self, zmanim_calculator: ZmanimCalculatorAngleBased) -> None:
         self.zmanim_calculator = zmanim_calculator
 
-    def build(self, loc: Location, start: date, end: date):
+    def build(self, loc: Location, start: date, end: date) -> pd.DataFrame:
         if end < start:
             raise ValueError("End date must be on/after start date.")
 
@@ -346,7 +345,7 @@ class ZmanimDataBuilder:
         seconds = total_seconds % 60
         return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-    def rows_to_df(self, rows):
+    def rows_to_df(self, rows: list[ZmanimRow]) -> pd.DataFrame:
         records = []
         for r in rows:
             a = {
@@ -385,12 +384,12 @@ class ZmanimDataBuilder:
 
 class ZmanimPlotter:
     @staticmethod
-    def time_to_minutes(series: pd.Series):
+    def time_to_minutes(series: pd.Series) -> pd.Series:
         dt = pd.to_datetime(series.str.slice(0, 19), errors="coerce")
         return dt.dt.hour * 60 + dt.dt.minute + dt.dt.second / 60.0
 
     @staticmethod
-    def minutes_to_hhmmss_format(m: float):
+    def minutes_to_hhmmss_format(m: float) -> str:
         if pd.isna(m):
             return ""
 
@@ -420,7 +419,7 @@ class ZmanimPlotter:
 
         return dt.dt.hour * 60 + dt.dt.minute + dt.dt.second / 60.0
 
-    def plot_zmanim(self, df: pd.DataFrame, title: str = "Zmanim (Local Time)"):
+    def plot_zmanim(self, df: pd.DataFrame, title: str = "Zmanim (Local Time)") -> go.Figure:
         columns = [
             "sunrise",
             "alos_nautical_edge",
@@ -478,7 +477,7 @@ class ZmanimPlotter:
 
 
 class ZmanimApp:
-    def __init__(self):
+    def __init__(self) -> None:
         self.location_resolver = LocationResolver()
         self.zmanim_calculator = ZmanimCalculatorAngleBased()
         self.zmanim_data_builder = ZmanimDataBuilder(self.zmanim_calculator)
@@ -535,7 +534,7 @@ class ZmanimApp:
         for i, (k, v) in enumerate(items):
             cols[i % 3].metric(label=k, value=v)
 
-    def run(self):
+    def run(self) -> None:
         st.set_page_config(page_title="Zmanim Chart", layout="wide")
         st.title("Zmanim Chart")
 
@@ -583,7 +582,7 @@ class ZmanimApp:
 
 
 
-def main():
+def main() -> None:
     zmanim_app = ZmanimApp()
     zmanim_app.run()
 

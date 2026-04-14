@@ -34,7 +34,7 @@
 ## 1. Project Identity
 
 - **Project:** `zmanim-tracker` — halachic prayer times calculator
-- **Location:** `/Users/amrambouskila/IMPORTANT/Projects/zmanim-tracker/`
+- **Location:** `zmanim-tracker/`
 - **Master plan:** `docs/ZMANIM_TRACKER_MASTER_PLAN.md`
 - **Stack:** Python 3.13+, Streamlit, astral, pandas, plotly, requests, pgeocode, timezonefinder, zoneinfo
 - **Package manager:** uv

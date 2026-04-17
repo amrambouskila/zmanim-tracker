@@ -169,5 +169,7 @@ def test_timezone_for_returns_iana_string(resolver: LocationResolver) -> None:
 def test_timezone_for_unknown_coordinates_returns_utc(
     resolver: LocationResolver, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(resolver.tz_finder, "timezone_at", lambda **_: None)
+    monkeypatch.setattr(
+        resolver, "tz_finder", SimpleNamespace(timezone_at=lambda **_: None)
+    )
     assert resolver.timezone_for(0.0, 0.0) == "UTC"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from src.models.zmanim_row import ZmanimRow
 
@@ -9,7 +9,7 @@ def _make_row(
     candle_lighting: datetime | None = None,
     shabbat_ends: datetime | None = None,
 ) -> ZmanimRow:
-    t = datetime(2024, 3, 20, 12, 0, 0, tzinfo=timezone.utc)
+    t = datetime(2024, 3, 20, 12, 0, 0, tzinfo=UTC)
     return ZmanimRow(
         day=date(2024, 3, 20),
         location_label="NYC",
@@ -43,7 +43,7 @@ def test_zmanim_row_defaults_to_none_shabbat_fields() -> None:
 
 
 def test_zmanim_row_holds_shabbat_fields() -> None:
-    t = datetime(2024, 3, 22, 18, 0, 0, tzinfo=timezone.utc)
+    t = datetime(2024, 3, 22, 18, 0, 0, tzinfo=UTC)
     row = _make_row(candle_lighting=t, shabbat_ends=t)
     assert row.candle_lighting == t
     assert row.shabbat_ends == t

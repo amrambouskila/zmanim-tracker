@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.models.solar_primitives_utc import SolarPrimitivesUTC
 
 
 def test_solar_primitives_utc_construction() -> None:
-    t = datetime(2024, 3, 20, 12, 0, 0, tzinfo=timezone.utc)
+    t = datetime(2024, 3, 20, 12, 0, 0, tzinfo=UTC)
     prim = SolarPrimitivesUTC(
         sunrise=t,
         sunset=t,

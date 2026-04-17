@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -42,7 +42,7 @@ def test_format_timestamp_handles_none(builder: ZmanimDataBuilder) -> None:
 
 
 def test_format_timestamp_formats_datetime(builder: ZmanimDataBuilder) -> None:
-    dt = datetime(2024, 3, 20, 12, 34, 56, tzinfo=timezone.utc)
+    dt = datetime(2024, 3, 20, 12, 34, 56, tzinfo=UTC)
     result = builder.format_timestamp(dt)
     assert result.startswith("2024-03-20 12:34:56")
     assert "UTC" in result
@@ -61,7 +61,7 @@ def test_format_duration_negative(builder: ZmanimDataBuilder) -> None:
 
 
 def test_rows_to_df_includes_shabbat_blanks_for_none(builder: ZmanimDataBuilder) -> None:
-    t = datetime(2024, 3, 18, 12, 0, 0, tzinfo=timezone.utc)  # Monday
+    t = datetime(2024, 3, 18, 12, 0, 0, tzinfo=UTC)  # Monday
     row = ZmanimRow(
         day=date(2024, 3, 18),
         location_label="NYC",

@@ -37,6 +37,3 @@ docker-compose.override.yml
 
 # ruff
 .ruff_cache/
-
-# uv
-uv.lock

@@ -1,0 +1,48 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "EDITED_FILE=\"$TOOL_INPUT_FILE_PATH\" && case \"$EDITED_FILE\" in *.env*|*credentials*|*secrets*|*.pem|*.key|*.p12) echo '{\"decision\":\"block\",\"reason\":\"Blocking write to sensitive file. Confirm with user before proceeding.\"}' ;; *) ;; esac",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "EDITED_FILE=$(jq -r '.tool_input.file_path // empty') && case \"$EDITED_FILE\" in */engine/*|*calculator*|*solar*|*zmanim_calculator*) echo 'ZMANIM ENGINE CODE EDITED: '\"$EDITED_FILE\" && echo '' && echo 'Before continuing, verify:' && echo '  1. All depression angles come from config, not magic numbers' && echo '  2. Shaah zmanis formula is correct for the opinion (GRA vs MGA)' && echo '  3. Time-based zmanim use the correct number of shaos' && echo '  4. Candle lighting / havdalah logic handles Friday/Saturday correctly' && echo '  5. All datetimes are timezone-aware (ZoneInfo)' && echo '  6. Run tests and validate against reference zmanim source' ;; */models/*) echo 'DATA MODEL EDITED: '\"$EDITED_FILE\" && echo '' && echo 'Data models are contracts. Verify:' && echo '  1. All fields have type annotations' && echo '  2. Units documented (degrees, minutes, etc.)' && echo '  3. Frozen dataclass if immutable' && echo '  4. No changes that break ZmanimRow or Location contracts' ;; */location/*) echo 'LOCATION CODE EDITED: '\"$EDITED_FILE\" && echo '' && echo 'Verify:' && echo '  1. Nominatim rate limiting enforced (min 0.8s between requests)' && echo '  2. ValueError raised on unresolvable input' && echo '  3. IANA timezone string validated via ZoneInfo' ;; *) ;; esac",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '=== SESSION END CHECK ===' && CHANGED=$(git diff --name-only 2>/dev/null) && STAGED=$(git diff --cached --name-only 2>/dev/null) && if [ -n \"$CHANGED\" ] || [ -n \"$STAGED\" ]; then echo 'UNCOMMITTED CHANGES DETECTED:' && echo \"$CHANGED\" && echo \"$STAGED\" && echo '' && DOCS_TOUCHED=false && echo \"$CHANGED $STAGED\" | grep -q 'docs/' && DOCS_TOUCHED=true; if [ \"$DOCS_TOUCHED\" = false ]; then echo 'WARNING: Files changed but docs/ not updated.' && echo 'Consider updating: status.md, versions.md'; fi; else echo 'No uncommitted changes.'; fi",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\":\"SESSION END \u2014 MEMORY REVIEW: Before this session closes, review what was learned and suggest memories the user may want to save. Check ~/.codex/memories/-Users-amrambouskila-IMPORTANT-Projects-zmanim-tracker/memory/MEMORY.md first to avoid duplicates \u2014 update existing memories rather than creating new ones when the topic already exists. Memory types: user (role, preferences, knowledge), feedback (corrections given, confirmed approaches \u2014 include WHY), project (decisions with external motivation, deadlines, stakeholder context), reference (pointers to external systems). Worth saving: corrections the user gave you, non-obvious approaches they confirmed, project decisions driven by external factors, pointers to external tools/systems, user preferences learned this session. NOT worth saving: anything derivable from code or git history, debugging solutions, ephemeral task details, things already in AGENTS.md. Present a short bulleted list of suggested memories at the end of your response and let the user decide which to save. Memory dir: ~/.codex/memories/-Users-amrambouskila-IMPORTANT-Projects-zmanim-tracker/memory/\"}'",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

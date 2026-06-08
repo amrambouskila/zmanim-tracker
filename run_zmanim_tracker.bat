@@ -5,7 +5,7 @@ REM ============================================================
 REM              CONFIGURATION (EDIT THESE ONLY)
 REM ============================================================
 set "COMPOSE_FILE=docker-compose.yml"
-set "PORT=8501"
+set "PORT=5270"
 set "URL=http://localhost:%PORT%"
 
 REM ============================================================

@@ -5,7 +5,7 @@ set -e
 #              CONFIGURATION (EDIT THESE ONLY)
 # ============================================================
 COMPOSE_FILE="docker-compose.yml"
-PORT="${ZT_PORT:-8501}"
+PORT="${ZT_PORT:-5270}"
 URL="http://localhost:$PORT"
 
 # ============================================================

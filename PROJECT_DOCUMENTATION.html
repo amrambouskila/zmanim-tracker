@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>zmanim-tracker — Project Documentation</title>
+  <link rel="stylesheet" href="../.doc-assets/doc.css">
+</head>
+<body>
+  <div id="scrollProgress"></div>
+
+  <header class="doc-header">
+    <div class="brand">
+      <span class="kicker">Project Guide</span>
+      <span class="title">zmanim-tracker</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="doc-search">
+      <input id="docSearch" type="search" placeholder="Search this guide…" aria-label="Search documentation">
+      <span class="search-count"></span>
+    </div>
+    <div class="btn-group">
+      <button class="btn" id="expandAll" title="Expand all sections"><span class="ico" style="-webkit-mask:var(--icon-expand) center/contain no-repeat;mask:var(--icon-expand) center/contain no-repeat"></span><span class="label">Expand</span></button>
+      <button class="btn" id="collapseAll" title="Collapse all sections"><span class="ico" style="-webkit-mask:var(--icon-collapse) center/contain no-repeat;mask:var(--icon-collapse) center/contain no-repeat"></span><span class="label">Collapse</span></button>
+      <button class="btn" id="themeToggle" title="Toggle light / dark"><span class="ico"></span></button>
+      <button class="btn" id="printBtn" title="Print / Save as PDF"><span class="ico" style="-webkit-mask:var(--icon-print) center/contain no-repeat;mask:var(--icon-print) center/contain no-repeat"></span></button>
+    </div>
+  </header>
+
+  <div class="doc-layout">
+    <nav class="doc-toc" id="docToc"><div class="toc-title">Contents</div></nav>
+
+    <main class="doc-content">
+      <div class="doc-content-inner">
+
+        <section class="doc-hero">
+          <h1>zmanim-tracker</h1>
+          <p class="lede">A halachic prayer-times (zmanim) calculator that derives sunrise, sunset, dawn/dusk twilight boundaries, and all standard time-based zmanim for any location worldwide using solar-angle astronomy.</p>
+          <div class="badge-row">
+            <span class="badge accent">Python app</span>
+            <span class="badge green">Phase 1 · active</span>
+            <span class="badge purple">Streamlit + astral</span>
+            <span class="badge">v0.2.0</span>
+          </div>
+          <div class="meta-grid">
+            <div class="meta-item"><div class="meta-k">Stack</div><div class="meta-v">Python 3.13 · Streamlit · astral · pandas · Plotly</div></div>
+            <div class="meta-item"><div class="meta-k">Persistence</div><div class="meta-v">None (stateless · CSV export)</div></div>
+            <div class="meta-item"><div class="meta-k">Entry point</div><div class="meta-v">src/app.py · run_zmanim_tracker.sh</div></div>
+            <div class="meta-item"><div class="meta-k">Status</div><div class="meta-v">OOP refactor complete · tests at 100% gate</div></div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="overview">
+          <details open>
+            <summary><span class="sec-num">1</span><h2>Overview — what this is &amp; why</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">A safety-critical halachic tool: people rely on these times for davening, Shabbat candle lighting, and havdalah. Accuracy is treated like a correctness invariant, not a nicety.</p>
+
+              <p><strong>zmanim-tracker</strong> computes <em>zmanim</em> — the halachically-defined times of day that govern Jewish prayer and observance. Unlike fixed clock times, most zmanim are derived from the sun's position relative to the horizon at a specific latitude, longitude, and date. The app takes a location (entered as lat/lon, a US ZIP code, or free text) and a date range, then produces every standard zman per day: dawn (<em>alos</em>) at several depression angles, <em>misheyakir</em>, sunrise, latest Shema and Shacharit, <em>chatzos</em>, the three Mincha boundaries, <em>plag hamincha</em>, sunset, nightfall (<em>tzais</em>), <em>chatzot halaila</em>, plus Shabbat candle lighting and havdalah on the relevant days.</p>
+
+              <p>The core idea is the <strong>proportional halachic hour</strong> (<em>shaah zmanis</em>): daylight from sunrise to sunset is divided into twelve equal parts, so an "hour" is longer in summer and shorter in winter. Time-based zmanim are expressed as multiples of that hour from sunrise; angle-based zmanim (dawn/dusk) come straight from the sun's depression below the horizon. The current implementation uses the <strong>GRA opinion</strong> for proportional times and a configurable set of depression angles for the twilight boundaries.</p>
+
+              <p>This is <strong>Phase 1</strong>: a single-user <strong>Streamlit</strong> app that runs entirely locally (solar math via the <code>astral</code> library; offline ZIP and timezone lookups), with free-text geocoding the only network dependency. The codebase has been refactored out of an original single-file prototype into a clean one-class-per-file <code>src/</code> module tree with a full pytest suite gated at 100% coverage. Phase 2 (FastAPI + React + Hebrew calendar + Postgres) and Phase 3 (notifications, calendar sync, PDF) are planned but explicitly not built yet.</p>
+
+              <div class="callout key"><div class="callout-title">Key concept</div><div class="callout-body">A <em>zman</em> is a halachic time boundary computed from sun geometry. The whole app is a pipeline: <strong>resolve a location → compute solar primitives → derive proportional and angle-based zmanim → tabulate / chart / export</strong>. Everything else is plumbing around that core.</div></div>
+
+              <div class="callout note"><div class="callout-title">Note</div><div class="callout-body">Two AI-guideline files coexist at the root: <code class="fileref" data-path="CLAUDE.md">CLAUDE.md</code> (for Claude) and <code class="fileref" data-path="AGENTS.md">AGENTS.md</code> (for Codex). They are byte-for-byte mirrors apart from the tool name and the <code>.claude/</code> vs <code>.codex/</code> path references.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="status">
+          <details>
+            <summary><span class="sec-num">2</span><h2>Status &amp; at-a-glance</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Phase 1, mid-build. The prototype is fully refactored; infrastructure and tests are in place. Source of truth for the version is the <code>version</code> field in <code class="fileref" data-path="pyproject.toml">pyproject.toml</code>.</p>
+
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Dimension</th><th>Current</th></tr></thead>
+                <tbody>
+                  <tr><td>Phase</td><td>Phase 1 — Streamlit single-user app</td></tr>
+                  <tr><td>Version</td><td><code>0.2.0</code> (per <code>pyproject.toml</code>)</td></tr>
+                  <tr><td>Halachic opinion</td><td>GRA (proportional times) · configurable depression angles</td></tr>
+                  <tr><td>Location methods</td><td>lat/lon · US ZIP (offline) · free-text (Nominatim)</td></tr>
+                  <tr><td>Output</td><td>Today's-zmanim metrics · data table · Plotly chart · CSV export</td></tr>
+                  <tr><td>Tests</td><td>pytest suite, gate <code>--cov-fail-under=100</code></td></tr>
+                  <tr><td>CI</td><td>GitHub Actions (lint → test → build → docker-build)</td></tr>
+                </tbody>
+              </table></div>
+
+              <h3 class="anchor">Works today vs. planned</h3>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Feature</th><th>State</th><th>Notes</th></tr></thead>
+                <tbody>
+                  <tr><td>Full GRA zmanim for any location/date range</td><td>Built</td><td>Engine + data builder + UI all wired.</td></tr>
+                  <tr><td>Three location input methods</td><td>Built</td><td>lat/lon, ZIP via pgeocode, free-text via Nominatim.</td></tr>
+                  <tr><td>Interactive chart + CSV export</td><td>Built</td><td>Plotly over the date range.</td></tr>
+                  <tr><td>Shabbat candle lighting + havdalah</td><td>Built</td><td>Friday / Saturday gated.</td></tr>
+                  <tr><td>MGA opinion (72-min day)</td><td>Planned</td><td>Phase 1 extension (see roadmap); not in code yet.</td></tr>
+                  <tr><td>Hebrew calendar / yom tov / FastAPI / React</td><td>Planned</td><td>Phase 2.</td></tr>
+                  <tr><td>Notifications / calendar sync / PDF</td><td>Planned</td><td>Phase 3.</td></tr>
+                </tbody>
+              </table></div>
+
+              <div class="callout warn"><div class="callout-title">Watch out</div><div class="callout-body">The master plan and <code class="fileref" data-path="docs/status.md">docs/status.md</code> were written before the OOP refactor landed and still describe "single-file prototype <code>zmanim_tracker.py</code>". That file no longer exists in the tree — the real app is <code class="fileref" data-path="src/app.py">src/app.py</code> with the engine split across <code class="fileref dir" data-path="src/">src/</code>. The README and master plan also reference a <code>.gitlab-ci.yml</code>, but CI is actually GitHub Actions under <code class="fileref dir" data-path=".github/workflows/">.github/workflows/</code>.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="tech-stack">
+          <details>
+            <summary><span class="sec-num">3</span><h2>Tech stack</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Pure-Python compute stack with one web-UI layer. Every dependency is pinned in <code class="fileref" data-path="pyproject.toml">pyproject.toml</code> and locked in <code class="fileref" data-path="uv.lock">uv.lock</code>.</p>
+
+              <div class="stack-grid">
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">Python</span><span class="stack-ver">&gt;=3.13</span></div>
+                  <div class="stack-why">Modern typing (PEP 604 unions), <code>zoneinfo</code> in stdlib, <code>from __future__ import annotations</code> everywhere. <code>requires-python = "&gt;=3.13"</code>.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="pyproject.toml">pyproject.toml</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">Streamlit</span><span class="stack-ver">&gt;=1.40</span></div>
+                  <div class="stack-why">Rapid single-user UI for Phase 1: sidebar inputs, metrics, dataframe, chart, download button. Replaced by React in Phase 2.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/app.py">src/app.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">astral</span><span class="stack-ver">&gt;=3.2</span></div>
+                  <div class="stack-why">Pure-Python solar calculations (sunrise, sunset, noon, dawn/dusk at arbitrary depression). Handles atmospheric refraction. The astronomical heart of the app.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/engine/solar_angle_solver.py">src/engine/solar_angle_solver.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">pandas</span><span class="stack-ver">&gt;=2.2</span></div>
+                  <div class="stack-why">Tabular output for the data table, the chart source, and CSV export. The boundary format between engine and UI is a <code>DataFrame</code>.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/engine/zmanim_data_builder.py">src/engine/zmanim_data_builder.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">Plotly</span><span class="stack-ver">&gt;=5.24</span></div>
+                  <div class="stack-why">Interactive line chart of every zman over the date range, with custom hover times and a 24-hour fixed y-axis. Phase 1 only (Chart.js planned for Phase 2).</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/visualization/zmanim_plotter.py">src/visualization/zmanim_plotter.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">pgeocode</span><span class="stack-ver">&gt;=0.4</span></div>
+                  <div class="stack-why">Offline US ZIP → lat/lon resolution. No network call, no API key.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/location/location_resolver.py">src/location/location_resolver.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">timezonefinder</span><span class="stack-ver">&gt;=6.5</span></div>
+                  <div class="stack-why">Offline lat/lon → IANA timezone string, so every datetime is correctly localized via <code>zoneinfo.ZoneInfo</code>.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/location/location_resolver.py">src/location/location_resolver.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">requests</span><span class="stack-ver">&gt;=2.32</span></div>
+                  <div class="stack-why">HTTP client for OpenStreetMap Nominatim free-text geocoding (the only network dependency). Migrates to httpx in Phase 2.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="src/location/location_resolver.py">src/location/location_resolver.py</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">pytest + pytest-cov</span><span class="stack-ver">&gt;=8.3 / &gt;=6.0</span></div>
+                  <div class="stack-why">Test framework + coverage. Config gates at 100% via <code>addopts</code>. <code>responses</code> mocks Nominatim HTTP.</div>
+                  <div class="stack-foot"><code class="fileref dir" data-path="tests/">tests/</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">ruff</span><span class="stack-ver">&gt;=0.8</span></div>
+                  <div class="stack-why">Single lint + format tool. Rules <code>E, F, I, N, UP, ANN</code>, line length 120. <code>ANN</code> enforces full annotations (ignored in tests).</div>
+                  <div class="stack-foot"><code class="fileref" data-path="pyproject.toml">pyproject.toml</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">uv</span><span class="stack-ver">—</span></div>
+                  <div class="stack-why">Package manager and build driver (<code>uv sync</code>, <code>uv run</code>, <code>uv build</code>, <code>uv version --bump</code>). Lockfile <code>uv.lock</code>.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="uv.lock">uv.lock</code></div>
+                </div>
+                <div class="stack-card">
+                  <div class="stack-head"><span class="stack-name">Docker</span><span class="stack-ver">python:3.13-slim</span></div>
+                  <div class="stack-why">Containerized deploy. Single service, slim (glibc) base because musl/Alpine breaks scientific wheels.</div>
+                  <div class="stack-foot"><code class="fileref" data-path="Dockerfile">Dockerfile</code></div>
+                </div>
+              </div>
+
+              <div class="callout note"><div class="callout-title">Note</div><div class="callout-body"><code>pytest-asyncio</code> is present in the dev deps and <code>asyncio_mode = "auto"</code> is set, but the current Phase 1 code is fully synchronous — async is forward-compat scaffolding for the Phase 2 FastAPI backend.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="architecture">
+          <details>
+            <summary><span class="sec-num">4</span><h2>Architecture</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">A linear, stateless pipeline. The UI orchestrates four collaborators; the engine is the only place halachic math lives, and it depends on nothing but the solar solver and the data models.</p>
+
+              <div class="flow"><span class="node">Location string</span><span class="arrow">→</span><span class="node">Resolver</span><span class="arrow">→</span><span class="node">Calculator</span><span class="arrow">→</span><span class="node">DataBuilder</span><span class="arrow">→</span><span class="node">DataFrame</span><span class="arrow">→</span><span class="node">Table / Chart / CSV</span></div>
+
+              <figure class="diagram">
+                <div class="mermaid">
+graph TD
+    User["User: location + date range"] --> App["ZmanimApp (Streamlit UI)"]
+    App --> Resolver["LocationResolver"]
+    Resolver -->|lat/lon regex| ParseLL["parse lat,lon"]
+    Resolver -->|ZIP| PGeo["pgeocode (offline)"]
+    Resolver -->|free text| Nomi["Nominatim HTTP"]
+    Resolver -->|coords| TZF["TimezoneFinder (offline)"]
+    Resolver --> Loc["Location dataclass"]
+    App --> Builder["ZmanimDataBuilder"]
+    Builder --> Calc["ZmanimCalculatorAngleBased"]
+    Calc --> Solver["SolarAngleSolver"]
+    Solver --> Astral["astral library"]
+    Calc --> Row["ZmanimRow dataclass"]
+    Builder --> DF["pandas DataFrame"]
+    DF --> Table["st.dataframe"]
+    DF --> Plotter["ZmanimPlotter"]
+    Plotter --> Chart["Plotly figure"]
+    DF --> CSV["CSV download"]
+                </div>
+                <div class="mermaid-fallback"><figure class="code"><figcaption>diagram source · mermaid</figcaption><pre><code>graph TD
+    User["User: location + date range"] --&gt; App["ZmanimApp (Streamlit UI)"]
+    App --&gt; Resolver["LocationResolver"]
+    Resolver --&gt;|lat/lon regex| ParseLL["parse lat,lon"]
+    Resolver --&gt;|ZIP| PGeo["pgeocode (offline)"]
+    Resolver --&gt;|free text| Nomi["Nominatim HTTP"]
+    Resolver --&gt;|coords| TZF["TimezoneFinder (offline)"]
+    Resolver --&gt; Loc["Location dataclass"]
+    App --&gt; Builder["ZmanimDataBuilder"]
+    Builder --&gt; Calc["ZmanimCalculatorAngleBased"]
+    Calc --&gt; Solver["SolarAngleSolver"]
+    Solver --&gt; Astral["astral library"]
+    Calc --&gt; Row["ZmanimRow dataclass"]
+    Builder --&gt; DF["pandas DataFrame"]
+    DF --&gt; Table["st.dataframe"]
+    DF --&gt; Plotter["ZmanimPlotter"]
+    Plotter --&gt; Chart["Plotly figure"]
+    DF --&gt; CSV["CSV download"]</code></pre></figure></div>
+                <figcaption>Phase 1 component topology — a single process, four collaborators behind the Streamlit UI.</figcaption>
+              </figure>
+
+              <h3 class="anchor">Request sequence</h3>
+              <p>When the user clicks <strong>Generate</strong>, <code class="fileref" data-path="src/app.py:77">ZmanimApp.run()</code> drives this flow:</p>
+
+              <figure class="diagram">
+                <div class="mermaid">
+sequenceDiagram
+    actor U as User
+    participant A as ZmanimApp
+    participant R as LocationResolver
+    participant B as ZmanimDataBuilder
+    participant C as ZmanimCalculatorAngleBased
+    participant S as SolarAngleSolver
+    U->>A: location string + start/end date + Generate
+    A->>R: resolve(location_input)
+    R-->>A: Location(label, lat, lon, tz)
+    A->>B: build(loc, start, end)
+    loop each day in range
+        B->>C: compute_for_day(loc, day)
+        C->>S: sunrise/sunset/noon/dawn/dusk
+        S-->>C: tz-aware datetimes
+        C-->>B: ZmanimRow
+    end
+    B-->>A: DataFrame
+    A->>A: render today metrics + table + chart + CSV
+    A-->>U: rendered page
+                </div>
+                <div class="mermaid-fallback"><figure class="code"><figcaption>diagram source · mermaid</figcaption><pre><code>sequenceDiagram
+    actor U as User
+    participant A as ZmanimApp
+    participant R as LocationResolver
+    participant B as ZmanimDataBuilder
+    participant C as ZmanimCalculatorAngleBased
+    participant S as SolarAngleSolver
+    U-&gt;&gt;A: location string + start/end date + Generate
+    A-&gt;&gt;R: resolve(location_input)
+    R--&gt;&gt;A: Location(label, lat, lon, tz)
+    A-&gt;&gt;B: build(loc, start, end)
+    loop each day in range
+        B-&gt;&gt;C: compute_for_day(loc, day)
+        C-&gt;&gt;S: sunrise/sunset/noon/dawn/dusk
+        S--&gt;&gt;C: tz-aware datetimes
+        C--&gt;&gt;B: ZmanimRow
+    end
+    B--&gt;&gt;A: DataFrame
+    A-&gt;&gt;A: render today metrics + table + chart + CSV
+    A--&gt;&gt;U: rendered page</code></pre></figure></div>
+                <figcaption>End-to-end request flow on a Generate click.</figcaption>
+              </figure>
+
+              <h3>Process boundaries &amp; principles</h3>
+              <ul>
+                <li><strong>One process.</strong> No backend, no database, no message bus. Streamlit runs the whole pipeline in-process on each rerun.</li>
+                <li><strong>Engine is standalone.</strong> <code>ZmanimCalculatorAngleBased</code> depends only on <code>SolarAngleSolver</code> and the dataclasses — it is importable and usable without Streamlit, pandas, or the resolver. This is what lets Phase 2 reuse it behind FastAPI unchanged.</li>
+                <li><strong>Validation at boundaries only.</strong> The resolver validates user input and external responses (lat/lon range, empty input, Nominatim failure). Internal engine calls trust their types.</li>
+                <li><strong>Timezone correctness is load-bearing.</strong> Every datetime is timezone-aware (<code>ZoneInfo</code>); the timezone is resolved once per location and threaded through the solar solver.</li>
+              </ul>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="structure">
+          <details>
+            <summary><span class="sec-num">5</span><h2>Directory structure</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">One concept per file under <code class="fileref dir" data-path="src/">src/</code>, with tests mirroring the layout under <code class="fileref dir" data-path="tests/">tests/</code>.</p>
+
+              <div class="filelist">
+                <div class="filecard"><code class="fileref" data-path="src/app.py">src/app.py</code><span class="filecard-desc">Streamlit UI (<code>ZmanimApp</code>) — sidebar inputs, today's metrics, table, chart, CSV. The app entry point.</span></div>
+                <div class="filecard"><code class="fileref dir" data-path="src/models/">src/models/</code><span class="filecard-desc">Frozen dataclasses (the data contracts): <code>Location</code>, <code>ZmanimRow</code>, <code>SolarPrimitivesUTC</code>.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/models/location.py">src/models/location.py</code><span class="filecard-desc"><code>Location</code> — label, latitude, longitude, IANA timezone.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/models/zmanim_row.py">src/models/zmanim_row.py</code><span class="filecard-desc"><code>ZmanimRow</code> — all computed zmanim for one day (the engine's output record).</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/models/solar_primitives_utc.py">src/models/solar_primitives_utc.py</code><span class="filecard-desc"><code>SolarPrimitivesUTC</code> — UTC twilight-boundary dataclass. Defined and tested but not yet consumed by the engine (see Modules note).</span></div>
+                <div class="filecard"><code class="fileref dir" data-path="src/engine/">src/engine/</code><span class="filecard-desc">The compute core: solar solver, zmanim calculator, dataframe builder.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/engine/solar_angle_solver.py">src/engine/solar_angle_solver.py</code><span class="filecard-desc"><code>SolarAngleSolver</code> — thin static wrapper over <code>astral</code> returning tz-aware datetimes.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/engine/zmanim_calculator.py">src/engine/zmanim_calculator.py</code><span class="filecard-desc"><code>ZmanimCalculatorAngleBased</code> — the halachic math; produces a <code>ZmanimRow</code> per day.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/engine/zmanim_data_builder.py">src/engine/zmanim_data_builder.py</code><span class="filecard-desc"><code>ZmanimDataBuilder</code> — loops a date range, formats rows into a <code>DataFrame</code>.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/location/location_resolver.py">src/location/location_resolver.py</code><span class="filecard-desc"><code>LocationResolver</code> — lat/lon, ZIP, free-text → <code>Location</code>, with timezone lookup.</span></div>
+                <div class="filecard"><code class="fileref" data-path="src/visualization/zmanim_plotter.py">src/visualization/zmanim_plotter.py</code><span class="filecard-desc"><code>ZmanimPlotter</code> — builds the Plotly figure over the date range.</span></div>
+                <div class="filecard"><code class="fileref dir" data-path="tests/">tests/</code><span class="filecard-desc">pytest suite, one file per source module; <code>conftest.py</code> holds NYC/Jerusalem/Sydney location fixtures.</span></div>
+                <div class="filecard"><code class="fileref dir" data-path="docs/">docs/</code><span class="filecard-desc">Master plan, <code>status.md</code>, <code>versions.md</code>.</span></div>
+                <div class="filecard"><code class="fileref" data-path="pyproject.toml">pyproject.toml</code><span class="filecard-desc">Project metadata, deps, ruff config, pytest/coverage config, hatchling build.</span></div>
+                <div class="filecard"><code class="fileref" data-path="Dockerfile">Dockerfile</code><span class="filecard-desc">python:3.13-slim image; installs deps via uv; runs Streamlit on 8501.</span></div>
+                <div class="filecard"><code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code><span class="filecard-desc">Single service; maps <code>${ZT_PORT:-5270}:8501</code>; bind-mounts <code>./src</code>.</span></div>
+                <div class="filecard"><code class="fileref" data-path="run_zmanim_tracker.sh">run_zmanim_tracker.sh</code><span class="filecard-desc">macOS/Linux launcher with the k/q/v/r loop.</span></div>
+                <div class="filecard"><code class="fileref" data-path="run_zmanim_tracker.bat">run_zmanim_tracker.bat</code><span class="filecard-desc">Windows launcher (goto-label k/q/v/r loop).</span></div>
+                <div class="filecard"><code class="fileref dir" data-path=".github/workflows/">.github/workflows/</code><span class="filecard-desc">CI (<code>ci.yml</code>) and release (<code>release.yml</code>) GitHub Actions.</span></div>
+                <div class="filecard"><code class="fileref dir" data-path="scripts/hooks/">scripts/hooks/</code><span class="filecard-desc">Node <code>.cjs</code> agent hooks (OS-agnostic) used by Claude/Codex tooling.</span></div>
+                <div class="filecard"><code class="fileref" data-path="CLAUDE.md">CLAUDE.md</code><span class="filecard-desc">AI/dev guidelines, halachic accuracy rules, data contracts. Mirror: <code>AGENTS.md</code>.</span></div>
+              </div>
+
+              <div class="callout tip"><div class="callout-title">Tip</div><div class="callout-body">Heavy/uninteresting paths to ignore when browsing: <code class="fileref" data-path="uv.lock">uv.lock</code> (generated), <code class="fileref dir" data-path=".git/">.git/</code>, <code>__pycache__</code>, and the <code>.agents/</code> / <code>.codex/</code> command-and-skill folders (agent tooling, not app code).</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="modules">
+          <details>
+            <summary><span class="sec-num">6</span><h2>Core modules</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">The heart of the doc. Each drill-down covers what the module does, its key logic, and the exact files and lines.</p>
+
+              <details class="sub">
+                <summary>SolarAngleSolver <span class="sub-tag">src/engine/solar_angle_solver.py</span></summary>
+                <div class="sub-body">
+                  <p>A stateless static-method wrapper around the <code>astral</code> library. It is the single point where raw astronomy enters the system. Every method builds an <code>astral.Observer</code> from lat/lon and asks astral for a specific solar event, returning a <strong>timezone-aware</strong> <code>datetime</code> in the location's IANA timezone (via <code>ZoneInfo(tz_name)</code>).</p>
+                  <p>Five primitives are exposed: <code>sunrise_local</code>, <code>sunset_local</code>, <code>solar_noon_local</code>, and the two angle-parameterized ones — <code>dawn_at_depression_local</code> and <code>dusk_at_depression_local</code>. The depression methods are what make every angle-based zman possible: pass a depression in degrees and astral solves for the time the sun crosses that angle below the horizon (dawn = morning side, dusk = evening side).</p>
+                  <figure class="code">
+                    <figcaption>src/engine/solar_angle_solver.py · dawn at arbitrary depression<span class="lang">python</span></figcaption>
+                    <pre><code>@staticmethod
+def dawn_at_depression_local(
+    day: date, lat: float, lon: float, tz_name: str, depression_deg: float
+) -&gt; datetime:
+    return dawn(
+        SolarAngleSolver.observer(lat, lon),
+        date=day,
+        tzinfo=ZoneInfo(tz_name),
+        depression=depression_deg,
+    )</code></pre>
+                  </figure>
+                  <div class="callout warn"><div class="callout-title">Watch out</div><div class="callout-body">In polar regions or extreme angles the sun may never reach a given depression; <code>astral</code> raises <code>ValueError</code> in those cases. The master plan's data-flow contract says <code>compute_for_day</code> "raises on polar regions where sun doesn't set/rise" — that propagation is by design, not caught.</div></div>
+                  <div class="filelist">
+                    <div class="filecard"><code class="fileref" data-path="src/engine/solar_angle_solver.py">src/engine/solar_angle_solver.py</code><span class="filecard-desc">All five solar primitives.</span></div>
+                    <div class="filecard"><code class="fileref" data-path="tests/test_solar_angle_solver.py">tests/test_solar_angle_solver.py</code><span class="filecard-desc">Validates ordering and tz-awareness of each primitive.</span></div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="sub">
+                <summary>ZmanimCalculatorAngleBased <span class="sub-tag">src/engine/zmanim_calculator.py</span></summary>
+                <div class="sub-body">
+                  <p>The halachic engine. Its constructor captures the configurable opinion parameters (depression angles, candle-lighting offset, Shabbat-end basis), coercing them to the right types. The single public method, <code>compute_for_day(loc, day) -&gt; ZmanimRow</code>, does the whole day's calculation.</p>
+                  <p><strong>Step 1 — solar primitives.</strong> It asks <code>SolarAngleSolver</code> for sunrise, sunset, and solar noon (local), plus tomorrow's sunrise (needed for halachic midnight).</p>
+                  <p><strong>Step 2 — proportional hour.</strong> The GRA <em>shaah zmanis</em> is simply <code>(sunset - sunrise) / 12</code> — a <code>timedelta</code>. All time-based zmanim are <code>sunrise + N * shaah_zmanis</code>:</p>
+                  <figure class="code">
+                    <figcaption>src/engine/zmanim_calculator.py:47 · proportional-hour zmanim<span class="lang">python</span></figcaption>
+                    <pre><code>shaah_zmanis = (sunset_local - sunrise_local) / 12
+latest_shema = sunrise_local + (shaah_zmanis * 3)
+latest_shacharit = sunrise_local + (shaah_zmanis * 4)
+
+earliest_mincha = sunrise_local + (shaah_zmanis * 6.5)   # Mincha Gedolah
+mincha_ketana = sunrise_local + (shaah_zmanis * 9.5)
+plag_hamincha = sunrise_local + (shaah_zmanis * 10.75)</code></pre>
+                  </figure>
+                  <p><strong>Step 3 — angle-based zmanim.</strong> Five dawn/dusk times from the configured depression angles (alos astronomical 16.9°, alos nautical 12°, misheyakir 10°, tzais three stars 8.5°, tzais civil 6°).</p>
+                  <p><strong>Step 4 — chatzot halaila.</strong> Halachic midnight is the midpoint between tonight's sunset and tomorrow's sunrise: <code>sunset + (sunrise_tomorrow - sunset) / 2</code>.</p>
+                  <p><strong>Step 5 — Shabbat gating.</strong> Using <code>day.weekday()</code> (Monday=0), Friday (4) gets candle lighting at <code>sunset - offset</code>; Saturday (5) gets havdalah from the configured dusk basis plus an optional offset. All other days leave both <code>None</code>.</p>
+                  <figure class="code">
+                    <figcaption>src/engine/zmanim_calculator.py:71 · Shabbat gating<span class="lang">python</span></figcaption>
+                    <pre><code>weekday = day.weekday()
+candle_lighting = None
+shabbat_ends = None
+
+if weekday == 4:  # Friday
+    candle_lighting = sunset_local - timedelta(minutes=self.candle_lighting_offset_min)
+
+if weekday == 5:  # Saturday
+    base = tzais_three_stars if self.shabbat_end_basis == "tzais_three_stars" else tzais_civil_end
+    shabbat_ends = base + timedelta(minutes=self.shabbat_end_offset_min)</code></pre>
+                  </figure>
+                  <div class="callout key"><div class="callout-title">Key concept</div><div class="callout-body">Each halachic <em>opinion</em> is a <strong>configuration of this one calculator</strong>, not a separate class. Changing depression angles or offsets in the constructor produces a different shitah without touching the math. This is the design that makes MGA (Phase 1 extension) an additive feature.</div></div>
+                  <div class="filelist">
+                    <div class="filecard"><code class="fileref" data-path="src/engine/zmanim_calculator.py">src/engine/zmanim_calculator.py</code><span class="filecard-desc">Constructor params + <code>compute_for_day</code>.</span></div>
+                    <div class="filecard"><code class="fileref" data-path="tests/test_zmanim_calculator.py">tests/test_zmanim_calculator.py</code><span class="filecard-desc">Reference-validated NYC equinox case + ordering + Shabbat-gating sweep.</span></div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="sub">
+                <summary>ZmanimDataBuilder <span class="sub-tag">src/engine/zmanim_data_builder.py</span></summary>
+                <div class="sub-body">
+                  <p>Turns a date range into a presentation-ready <code>pandas.DataFrame</code>. <code>build(loc, start, end)</code> validates the range (raises <code>ValueError</code> if <code>end &lt; start</code>), walks day-by-day calling the calculator, then formats each <code>ZmanimRow</code> into a flat record.</p>
+                  <p>Two formatting helpers do the string work: <code>format_timestamp</code> renders datetimes as <code>"%Y-%m-%d %H:%M:%S %Z"</code> (empty string for <code>None</code>, so non-Shabbat days have blank candle/havdalah cells), and <code>format_duration</code> renders the <em>shaah zmanis</em> timedelta as signed <code>HH:MM:SS</code>.</p>
+                  <figure class="code">
+                    <figcaption>src/engine/zmanim_data_builder.py:16 · date-range loop<span class="lang">python</span></figcaption>
+                    <pre><code>def build(self, loc: Location, start: date, end: date) -&gt; pd.DataFrame:
+    if end &lt; start:
+        raise ValueError("End date must be on/after start date.")
+
+    days: list[date] = []
+    cur = start
+    while cur &lt;= end:
+        days.append(cur)
+        cur = cur + timedelta(days=1)
+
+    rows = [self.zmanim_calculator.compute_for_day(loc, d) for d in days]
+    return self.rows_to_df(rows)</code></pre>
+                  </figure>
+                  <div class="callout note"><div class="callout-title">Note</div><div class="callout-body">The DataFrame is the <strong>contract between engine and UI</strong>: its column names (e.g. <code>alos_astronomical_edge</code>, <code>plag_hamincha</code>, <code>shaah_zmanis</code>) are referenced by string in <code>app.py</code> and <code>zmanim_plotter.py</code>. Renaming a column means updating those two consumers too.</div></div>
+                  <div class="filelist">
+                    <div class="filecard"><code class="fileref" data-path="src/engine/zmanim_data_builder.py">src/engine/zmanim_data_builder.py</code><span class="filecard-desc">Range loop + formatting + <code>rows_to_df</code>.</span></div>
+                    <div class="filecard"><code class="fileref" data-path="tests/test_zmanim_data_builder.py">tests/test_zmanim_data_builder.py</code><span class="filecard-desc">Range validation, column presence, duration formatting.</span></div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="sub">
+                <summary>LocationResolver <span class="sub-tag">src/location/location_resolver.py</span></summary>
+                <div class="sub-body">
+                  <p>Turns a free-form string into a <code>Location</code>. <code>resolve(input)</code> tries three strategies in priority order and always returns a valid <code>Location</code> (or raises <code>ValueError</code>); it never returns <code>None</code>.</p>
+                  <ol class="steps">
+                    <li><strong>lat/lon</strong> — a regex matches <code>"40.7128, -74.0060"</code> (comma or space separated). Out-of-range coordinates raise <code>ValueError</code>.</li>
+                    <li><strong>US ZIP</strong> — a 5-digit (optionally ZIP+4) match is resolved offline via <code>pgeocode.Nominatim("us")</code>; if pgeocode has no record it falls back to the geocoder.</li>
+                    <li><strong>free text</strong> — anything else hits OpenStreetMap Nominatim over HTTP, taking the first result's lat/lon and <code>display_name</code>.</li>
+                  </ol>
+                  <p>For every resolved coordinate, <code>timezone_for</code> calls <code>TimezoneFinder.timezone_at</code> and validates the result through <code>require_iana_timezone</code> (which constructs a <code>ZoneInfo</code> to prove the string is real, defaulting to <code>"UTC"</code> if the finder returns nothing).</p>
+                  <figure class="code">
+                    <figcaption>src/location/location_resolver.py:78 · Nominatim call with rate-limit throttle<span class="lang">python</span></figcaption>
+                    <pre><code>def resolve_nominatim(self, query: str) -&gt; tuple[float, float, str]:
+    headers = {"User-Agent": NOMINATIM_USER_AGENT}
+    params = {"q": query, "format": "json", "limit": 1}
+
+    time.sleep(NOMINATIM_THROTTLE_SECONDS)   # 0.8s, OSM courtesy limit
+
+    resp = requests.get(NOMINATIM_URL, headers=headers, params=params)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        raise ValueError(f"Could not resolve location: {query}")
+    ...</code></pre>
+                  </figure>
+                  <div class="callout warn"><div class="callout-title">Watch out</div><div class="callout-body">Nominatim's usage policy is ~1 request/second and requires a descriptive <code>User-Agent</code>. The code enforces a fixed <code>0.8s</code> <code>time.sleep</code> before every call and sends <code>User-Agent: Zmanim_Trackerv0.0.1</code>. If you batch many free-text lookups, that sleep is the throttle — don't remove it.</div></div>
+                  <div class="filelist">
+                    <div class="filecard"><code class="fileref" data-path="src/location/location_resolver.py">src/location/location_resolver.py</code><span class="filecard-desc">Three resolution strategies + timezone lookup.</span></div>
+                    <div class="filecard"><code class="fileref" data-path="tests/test_location_resolver.py">tests/test_location_resolver.py</code><span class="filecard-desc">Mocks Nominatim (responses) and pgeocode; covers all branches and the UTC fallback.</span></div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="sub">
+                <summary>ZmanimPlotter <span class="sub-tag">src/visualization/zmanim_plotter.py</span></summary>
+                <div class="sub-body">
+                  <p>Builds the interactive Plotly figure. The challenge it solves: the DataFrame stores zmanim as formatted timestamp strings, but the chart's y-axis needs to be <em>time of day</em> (so all curves overlay on a common 0–24h scale regardless of date). <code>time_to_minutes</code> parses each column's timestamp and converts it to minutes-since-midnight; the figure then plots minutes on a fixed y-axis with custom hour tick labels.</p>
+                  <figure class="code">
+                    <figcaption>src/visualization/zmanim_plotter.py:28 · time-of-day as minutes<span class="lang">python</span></figcaption>
+                    <pre><code>@staticmethod
+def time_to_minutes(series: pd.Series) -&gt; pd.Series:
+    dt = pd.to_datetime(series.str.slice(0, 19), errors="coerce")
+    return dt.dt.hour * 60 + dt.dt.minute + dt.dt.second / 60.0</code></pre>
+                  </figure>
+                  <p>One trace per zman (16 columns in <code>ZMANIM_PLOT_COLUMNS</code>), each with a hover template that shows the date and the original <code>HH:MM:SS</code> time. The y-axis is locked to <code>[0, 1439]</code> minutes with hourly tickvals.</p>
+                  <div class="filelist">
+                    <div class="filecard"><code class="fileref" data-path="src/visualization/zmanim_plotter.py">src/visualization/zmanim_plotter.py</code><span class="filecard-desc">Figure construction, minute conversion, hover formatting.</span></div>
+                    <div class="filecard"><code class="fileref" data-path="tests/test_zmanim_plotter.py">tests/test_zmanim_plotter.py</code><span class="filecard-desc">Validates trace count, minute conversion, and the HH:MM:SS formatter.</span></div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="sub">
+                <summary>ZmanimApp (Streamlit UI) <span class="sub-tag">src/app.py</span></summary>
+                <div class="sub-body">
+                  <p>The orchestrator and the only UI code. Its constructor accepts optional collaborators (resolver, calculator, plotter) for testability, defaulting to real instances. <code>run()</code> renders the sidebar (location text input defaulting to <code>"10001"</code>, start/end date pickers, a Generate button), and on click runs the full pipeline.</p>
+                  <p><code>render_todays_zmanim</code> finds today's row (using the location's local date) and lays out the available zmanim as a 3-column grid of <code>st.metric</code> cards, in a fixed display order (<code>TODAYS_ZMANIM_DISPLAY_ORDER</code>) that follows the natural progression of the day. Blank/<code>None</code> values (e.g. candle lighting on a weekday) are skipped.</p>
+                  <div class="filelist">
+                    <div class="filecard"><code class="fileref" data-path="src/app.py">src/app.py</code><span class="filecard-desc"><code>ZmanimApp</code>, the display order constant, and <code>main()</code>.</span></div>
+                    <div class="filecard"><code class="fileref" data-path="tests/test_app.py">tests/test_app.py</code><span class="filecard-desc">Drives the app with fakes/stubs and asserts the render path.</span></div>
+                  </div>
+                  <div class="callout note"><div class="callout-title">Note</div><div class="callout-body">The <code>if __name__ == "__main__"</code> block is marked <code>pragma: no cover</code> — it's the Streamlit script entry, excluded from the coverage gate.</div></div>
+                </div>
+              </details>
+
+              <div class="callout warn"><div class="callout-title">Dead-ish code to know about</div><div class="callout-body"><code class="fileref" data-path="src/models/solar_primitives_utc.py">src/models/solar_primitives_utc.py</code> defines <code>SolarPrimitivesUTC</code> and has a matching test, but no engine code constructs or consumes it — the calculator calls <code>SolarAngleSolver</code> directly instead of going through this aggregate. It exists as a documented contract for a future refactor. If you wire it in, update <code>ZmanimCalculatorAngleBased</code> to build it once and read its fields.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="data-model">
+          <details>
+            <summary><span class="sec-num">7</span><h2>Data models &amp; contracts</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Three frozen dataclasses are the sacred contracts. They are documented in <code class="fileref" data-path="CLAUDE.md">CLAUDE.md</code> §4 and must not drift without architectural approval.</p>
+
+              <figure class="diagram">
+                <div class="mermaid">
+classDiagram
+    class Location {
+      +str label
+      +float latitude
+      +float longitude
+      +str timezone
+    }
+    class ZmanimRow {
+      +date day
+      +str location_label
+      +str timezone
+      +datetime sunrise
+      +datetime sunset
+      +datetime solar_noon
+      +datetime chatzos
+      +timedelta shaah_zmanis
+      +datetime alos_astronomical_edge
+      +datetime alos_nautical_edge
+      +datetime misheyakir
+      +datetime tzais_three_stars
+      +datetime tzais_civil_end
+      +datetime latest_shema
+      +datetime latest_shacharit
+      +datetime earliest_mincha
+      +datetime mincha_ketana
+      +datetime plag_hamincha
+      +datetime chatzot_halaila
+      +Optional candle_lighting
+      +Optional shabbat_ends
+    }
+    class SolarPrimitivesUTC {
+      +datetime sunrise
+      +datetime sunset
+      +datetime solar_noon
+      +datetime civil_twilight_begin
+      +datetime civil_twilight_end
+      +datetime nautical_twilight_begin
+      +datetime nautical_twilight_end
+      +datetime astronomical_twilight_begin
+      +datetime astronomical_twilight_end
+    }
+    Location --> ZmanimRow : input to compute_for_day
+                </div>
+                <div class="mermaid-fallback"><figure class="code"><figcaption>diagram source · mermaid</figcaption><pre><code>classDiagram
+    class Location {
+      +str label
+      +float latitude
+      +float longitude
+      +str timezone
+    }
+    class ZmanimRow {
+      +date day
+      +str location_label
+      +str timezone
+      +datetime sunrise
+      +datetime sunset
+      +datetime solar_noon
+      +datetime chatzos
+      +timedelta shaah_zmanis
+      +datetime alos_astronomical_edge
+      +datetime alos_nautical_edge
+      +datetime misheyakir
+      +datetime tzais_three_stars
+      +datetime tzais_civil_end
+      +datetime latest_shema
+      +datetime latest_shacharit
+      +datetime earliest_mincha
+      +datetime mincha_ketana
+      +datetime plag_hamincha
+      +datetime chatzot_halaila
+      +Optional candle_lighting
+      +Optional shabbat_ends
+    }
+    class SolarPrimitivesUTC {
+      +datetime sunrise
+      ... twilight begin/end x3 ...
+    }
+    Location --&gt; ZmanimRow : input to compute_for_day</code></pre></figure></div>
+                <figcaption>The three data contracts. <code>SolarPrimitivesUTC</code> is defined but not yet wired into the engine.</figcaption>
+              </figure>
+
+              <h3 class="anchor">Location</h3>
+              <dl class="doc-dl">
+                <dt>label</dt><dd>Human-readable name (e.g. <code>"40.71280, -74.00600"</code>, <code>"US 10001"</code>, or a Nominatim <code>display_name</code>).</dd>
+                <dt>latitude</dt><dd>Decimal degrees, −90…90 (WGS84).</dd>
+                <dt>longitude</dt><dd>Decimal degrees, −180…180 (WGS84).</dd>
+                <dt>timezone</dt><dd>IANA timezone string (e.g. <code>"America/New_York"</code>), used for all <code>ZoneInfo</code> localization. Defined in <code class="fileref" data-path="src/models/location.py">src/models/location.py</code>.</dd>
+              </dl>
+
+              <h3 class="anchor">ZmanimRow (DataFrame columns)</h3>
+              <p>The builder flattens a <code>ZmanimRow</code> into a record; these become the DataFrame columns consumed by the table, chart, and CSV. Datetimes render as <code>YYYY-MM-DD HH:MM:SS TZ</code>; <code>shaah_zmanis</code> renders as <code>HH:MM:SS</code>.</p>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>date</code></td><td>ISO string</td><td>Gregorian day.</td></tr>
+                  <tr><td><code>location</code> / <code>timezone</code></td><td>str</td><td>Echo of the resolved location.</td></tr>
+                  <tr><td><code>sunrise</code> / <code>sunset</code> / <code>solar_noon</code> / <code>chatzos</code></td><td>datetime</td><td>Solar primitives; <code>chatzos = solar_noon</code>.</td></tr>
+                  <tr><td><code>shaah_zmanis</code></td><td>timedelta</td><td>(sunset − sunrise) / 12 — the proportional hour.</td></tr>
+                  <tr><td><code>alos_astronomical_edge</code> / <code>alos_nautical_edge</code> / <code>misheyakir</code></td><td>datetime</td><td>Dawn at 16.9° / 12° / 10° depression.</td></tr>
+                  <tr><td><code>tzais_three_stars</code> / <code>tzais_civil_end</code></td><td>datetime</td><td>Dusk at 8.5° / 6° depression.</td></tr>
+                  <tr><td><code>latest_shema</code> / <code>latest_shacharit</code></td><td>datetime</td><td>sunrise + 3h / + 4h (proportional).</td></tr>
+                  <tr><td><code>earliest_mincha</code> / <code>mincha_ketana</code> / <code>plag_hamincha</code></td><td>datetime</td><td>sunrise + 6.5h / 9.5h / 10.75h.</td></tr>
+                  <tr><td><code>chatzot_halaila</code></td><td>datetime</td><td>Midpoint of sunset → next sunrise.</td></tr>
+                  <tr><td><code>candle_lighting</code></td><td>datetime | None</td><td>Friday only: sunset − offset (blank otherwise).</td></tr>
+                  <tr><td><code>shabbat_ends</code></td><td>datetime | None</td><td>Saturday only: dusk basis + offset (blank otherwise).</td></tr>
+                </tbody>
+              </table></div>
+
+              <div class="callout key"><div class="callout-title">Key concept</div><div class="callout-body">All dataclasses are <code>@dataclass(frozen=True)</code> — immutable value objects. The engine produces new rows; nothing mutates them. This is what makes the pipeline safe to reason about across a date range.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="calculations">
+          <details>
+            <summary><span class="sec-num">8</span><h2>Halachic calculations &amp; formulas</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">The real math. Every formula below is implemented verbatim in <code class="fileref" data-path="src/engine/zmanim_calculator.py">src/engine/zmanim_calculator.py</code> and documented in <code class="fileref" data-path="CLAUDE.md">CLAUDE.md</code> §5.</p>
+
+              <figure class="diagram">
+                <div class="mermaid">
+flowchart TD
+    Solar["sunrise, sunset, solar_noon (local)"] --> SZ["shaah_zmanis = (sunset - sunrise) / 12"]
+    SZ --> Shema["latest_shema = sunrise + 3h"]
+    SZ --> Shach["latest_shacharit = sunrise + 4h"]
+    SZ --> MG["earliest_mincha = sunrise + 6.5h"]
+    SZ --> MK["mincha_ketana = sunrise + 9.5h"]
+    SZ --> Plag["plag_hamincha = sunrise + 10.75h"]
+    Solar --> Chatzos["chatzos = solar_noon"]
+    Angles["depression angles"] --> Alos["alos 16.9 / 12 deg"]
+    Angles --> Mish["misheyakir 10 deg"]
+    Angles --> Tzais["tzais 8.5 / 6 deg"]
+    Solar --> ChatzotN["chatzot_halaila = sunset + (next_sunrise - sunset)/2"]
+                </div>
+                <div class="mermaid-fallback"><figure class="code"><figcaption>diagram source · mermaid</figcaption><pre><code>flowchart TD
+    Solar["sunrise, sunset, solar_noon (local)"] --&gt; SZ["shaah_zmanis = (sunset - sunrise) / 12"]
+    SZ --&gt; Shema["latest_shema = sunrise + 3h"]
+    SZ --&gt; Shach["latest_shacharit = sunrise + 4h"]
+    SZ --&gt; MG["earliest_mincha = sunrise + 6.5h"]
+    SZ --&gt; MK["mincha_ketana = sunrise + 9.5h"]
+    SZ --&gt; Plag["plag_hamincha = sunrise + 10.75h"]
+    Solar --&gt; Chatzos["chatzos = solar_noon"]
+    Angles --&gt; Alos["alos 16.9 / 12 deg"]
+    Angles --&gt; Mish["misheyakir 10 deg"]
+    Angles --&gt; Tzais["tzais 8.5 / 6 deg"]
+    Solar --&gt; ChatzotN["chatzot_halaila = sunset + (next_sunrise - sunset)/2"]</code></pre></figure></div>
+                <figcaption>How each zman is derived from solar primitives and depression angles.</figcaption>
+              </figure>
+
+              <h3 class="anchor">Shaah zmanis (proportional hour, GRA)</h3>
+              <p>The daylight period is divided into 12 equal parts: <code>shaah_zmanis = (sunset − sunrise) / 12</code>. It is longer in summer, shorter in winter. At the equinox it is ~60.8 minutes. Every time-based zman is a multiple of this hour added to sunrise.</p>
+
+              <h3 class="anchor">Time-based zmanim (GRA)</h3>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Zman</th><th>Formula</th><th>Halachic basis</th></tr></thead>
+                <tbody>
+                  <tr><td>Latest Shema</td><td><code>sunrise + 3 · shaah_zmanis</code></td><td>End of the 3rd halachic hour.</td></tr>
+                  <tr><td>Latest Shacharit</td><td><code>sunrise + 4 · shaah_zmanis</code></td><td>End of the 4th hour.</td></tr>
+                  <tr><td>Chatzos</td><td><code>solar_noon</code> (= sunrise + 6h)</td><td>Halachic midday.</td></tr>
+                  <tr><td>Mincha Gedolah</td><td><code>sunrise + 6.5 · shaah_zmanis</code></td><td>Half-hour after chatzos; earliest Mincha.</td></tr>
+                  <tr><td>Mincha Ketana</td><td><code>sunrise + 9.5 · shaah_zmanis</code></td><td>Preferred Mincha.</td></tr>
+                  <tr><td>Plag HaMincha</td><td><code>sunrise + 10.75 · shaah_zmanis</code></td><td>1.25 hours before sunset.</td></tr>
+                </tbody>
+              </table></div>
+
+              <h3 class="anchor">Angle-based zmanim (depression below horizon)</h3>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Zman</th><th>Depression</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td>Alos (astronomical)</td><td>16.9°</td><td>Earliest alos hashachar (dawn).</td></tr>
+                  <tr><td>Alos (nautical)</td><td>12.0°</td><td>Standard dawn.</td></tr>
+                  <tr><td>Misheyakir</td><td>10.0°</td><td>Earliest time for tallit &amp; tefillin.</td></tr>
+                  <tr><td>Tzais (three stars)</td><td>8.5°</td><td>Nightfall — three medium stars visible.</td></tr>
+                  <tr><td>Tzais (civil)</td><td>6.0°</td><td>Civil twilight end.</td></tr>
+                </tbody>
+              </table></div>
+              <p>Higher depression = farther below the horizon: alos at 16.9° is earlier than at 12°; tzais at 8.5° is earlier than at 6°. The tests assert exactly this ordering.</p>
+
+              <h3 class="anchor">Chatzot halaila (halachic midnight)</h3>
+              <p><code>chatzot_halaila = sunset + (next_sunrise − sunset) / 2</code> — the midpoint of the night, requiring tomorrow's sunrise (which is why the engine fetches it).</p>
+
+              <h3 class="anchor">Shabbat times</h3>
+              <dl class="doc-dl">
+                <dt>Candle lighting (Friday)</dt><dd><code>sunset − candle_lighting_offset_min</code>. Default 18 minutes (standard minhag; Jerusalem commonly uses 40). Configurable.</dd>
+                <dt>Havdalah / Shabbat ends (Saturday)</dt><dd><code>tzais_three_stars + shabbat_end_offset_min</code> by default, or <code>tzais_civil_end + offset</code> if <code>shabbat_end_basis</code> is set to <code>"tzais_civil_end"</code>.</dd>
+              </dl>
+
+              <div class="callout key"><div class="callout-title">Validation reference</div><div class="callout-body">The engine test validates NYC (40.7128, −74.0060) on the 2024-03-20 vernal equinox against MyZmanim.com published values, with a <strong>2-minute tolerance</strong> (solar-calc precision from refraction models). Reference EDT values: sunrise ~06:59, sunset ~19:09, solar noon ~13:04, shaah zmanis ~60.8 min, latest Shema ~10:02, latest Shacharit ~11:03. Other accepted sources per <code>CLAUDE.md</code>: Chabad.org and KosherJava.</div></div>
+              <div class="callout note"><div class="callout-title">MGA opinion — planned</div><div class="callout-body">The Magen Avraham (MGA) opinion uses a longer day: <code>shaah_zmanis_mga = (sunset+72min − (sunrise−72min)) / 12</code>. It is documented as a Phase 1 extension but <strong>not yet implemented</strong>. Adding it means a second config path through the same calculator, not a new class.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="interfaces">
+          <details>
+            <summary><span class="sec-num">9</span><h2>Interfaces &amp; public functions</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">There is no REST API in Phase 1 — the "interfaces" are the public methods of the engine classes, plus the Streamlit UI. These are the entry points Phase 2's FastAPI layer will call directly.</p>
+
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Callable</th><th>Signature</th><th>Behavior</th></tr></thead>
+                <tbody>
+                  <tr><td><code>LocationResolver.resolve</code></td><td><code>(str) → Location</code></td><td>Try lat/lon, ZIP, then free-text. Raises <code>ValueError</code> on empty/unresolvable input; never returns <code>None</code>.</td></tr>
+                  <tr><td><code>ZmanimCalculatorAngleBased.compute_for_day</code></td><td><code>(Location, date) → ZmanimRow</code></td><td>All zmanim for one day. May raise on polar regions where the sun doesn't reach a depression.</td></tr>
+                  <tr><td><code>ZmanimDataBuilder.build</code></td><td><code>(Location, date, date) → DataFrame</code></td><td>One row per day in <code>[start, end]</code>. Raises <code>ValueError</code> if <code>end &lt; start</code>.</td></tr>
+                  <tr><td><code>ZmanimPlotter.plot_zmanim</code></td><td><code>(DataFrame, str?) → go.Figure</code></td><td>Interactive line chart, one trace per zman column.</td></tr>
+                  <tr><td><code>ZmanimApp.run</code></td><td><code>() → None</code></td><td>Renders the whole Streamlit page and runs the pipeline on Generate.</td></tr>
+                  <tr><td><code>main</code></td><td><code>() → None</code></td><td>Module entry: <code>ZmanimApp().run()</code>.</td></tr>
+                </tbody>
+              </table></div>
+
+              <div class="callout tip"><div class="callout-title">Tip</div><div class="callout-body">To use the engine headless (no Streamlit), this is the whole API: <code>loc = LocationResolver().resolve("Jerusalem, Israel")</code> → <code>df = ZmanimDataBuilder(ZmanimCalculatorAngleBased()).build(loc, start, end)</code>. That two-liner is exactly what a script, notebook, or Phase 2 endpoint would call.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="config">
+          <details>
+            <summary><span class="sec-num">10</span><h2>Configuration &amp; environment</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Two kinds of config: the runtime port (env var) and the halachic parameters (calculator constructor args). There are no secrets and no <code>.env</code> file is required.</p>
+
+              <h3 class="anchor">Environment variables</h3>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>ZT_PORT</code></td><td><code>5270</code></td><td>Host port mapped to the container's Streamlit 8501. Read by <code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code> and both launchers.</td></tr>
+                  <tr><td><code>STREAMLIT_BROWSER_GATHER_USAGE_STATS</code></td><td><code>false</code></td><td>Set in <code class="fileref" data-path="tests/conftest.py">tests/conftest.py</code> to silence Streamlit telemetry during tests.</td></tr>
+                </tbody>
+              </table></div>
+
+              <h3 class="anchor">Calculator parameters (the opinion config)</h3>
+              <p>Passed to the <code>ZmanimCalculatorAngleBased</code> constructor in <code class="fileref" data-path="src/engine/zmanim_calculator.py">src/engine/zmanim_calculator.py</code>:</p>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Parameter</th><th>Default</th><th>Meaning</th></tr></thead>
+                <tbody>
+                  <tr><td><code>alos_astronomical_edge_deg</code></td><td><code>16.9</code></td><td>Depression for earliest alos.</td></tr>
+                  <tr><td><code>alos_nautical_edge_deg</code></td><td><code>12.0</code></td><td>Depression for nautical alos.</td></tr>
+                  <tr><td><code>misheyakir_deg</code></td><td><code>10.0</code></td><td>Depression for misheyakir.</td></tr>
+                  <tr><td><code>tzais_three_stars_deg</code></td><td><code>8.5</code></td><td>Depression for three-star nightfall.</td></tr>
+                  <tr><td><code>tzais_civil_end_deg</code></td><td><code>6.0</code></td><td>Depression for civil twilight end.</td></tr>
+                  <tr><td><code>candle_lighting_offset_min</code></td><td><code>18</code></td><td>Minutes before sunset for candle lighting.</td></tr>
+                  <tr><td><code>shabbat_end_offset_min</code></td><td><code>0</code></td><td>Extra minutes after the dusk basis for havdalah.</td></tr>
+                  <tr><td><code>shabbat_end_basis</code></td><td><code>"tzais_three_stars"</code></td><td>Which dusk time bases havdalah (<code>"tzais_three_stars"</code> or <code>"tzais_civil_end"</code>).</td></tr>
+                </tbody>
+              </table></div>
+
+              <div class="callout warn"><div class="callout-title">Watch out</div><div class="callout-body">The Streamlit UI currently constructs the calculator with <strong>defaults only</strong> — it exposes no widgets for these angles/offsets. To change an opinion today you must edit the construction in <code>app.py</code> (or pass a pre-configured calculator into <code>ZmanimApp(...)</code>). Surfacing these as sidebar controls is a natural first enhancement (see "How to edit").</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="run">
+          <details>
+            <summary><span class="sec-num">11</span><h2>How to run it</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Two ways: the Docker launcher (recommended) or a local <code>uv</code> run.</p>
+
+              <h3 class="anchor">Docker (recommended)</h3>
+              <ol class="steps">
+                <li>Run <code class="fileref" data-path="run_zmanim_tracker.sh">run_zmanim_tracker.sh</code> on macOS/Linux, or <code class="fileref" data-path="run_zmanim_tracker.bat">run_zmanim_tracker.bat</code> on Windows.</li>
+                <li>The launcher runs <code>docker compose up --build -d</code>, polls the URL until Streamlit responds (up to 60s), then opens the browser.</li>
+                <li>Open <code>http://localhost:5270</code> (override with <code>ZT_PORT</code>).</li>
+                <li>Use the menu loop: <code>k</code> stop/keep image · <code>q</code> stop/remove image · <code>v</code> stop/remove image+volumes · <code>r</code> full restart.</li>
+              </ol>
+
+              <h3 class="anchor">Local (no Docker)</h3>
+              <ol class="steps">
+                <li><code>uv sync</code> to install dependencies from <code class="fileref" data-path="pyproject.toml">pyproject.toml</code> / <code class="fileref" data-path="uv.lock">uv.lock</code>.</li>
+                <li><code>uv run streamlit run src/app.py</code> to launch the UI.</li>
+                <li>Open the Streamlit URL it prints (default Streamlit port 8501 when run directly).</li>
+              </ol>
+
+              <div class="callout warn"><div class="callout-title">README drift</div><div class="callout-body"><code class="fileref" data-path="README.md">README.md</code> says <code>uv run streamlit run zmanim_tracker.py</code> — but that root file no longer exists after the refactor. The correct target is <code>src/app.py</code> (matching the <code>Dockerfile</code> CMD). The README's "default port 5270" applies to the Docker mapping; a bare local Streamlit run uses 8501 unless you pass <code>--server.port</code>.</div></div>
+
+              <h3>What it exposes</h3>
+              <div class="flow"><span class="node">Host :5270</span><span class="arrow">→</span><span class="node">Container :8501</span><span class="arrow">→</span><span class="node">Streamlit</span></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="editing">
+          <details>
+            <summary><span class="sec-num">12</span><h2>How to edit &amp; extend it</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Owner-focused recipes. The golden rule from <code class="fileref" data-path="CLAUDE.md">CLAUDE.md</code>: one concept per file, full type annotations, <code>from __future__ import annotations</code> at the top, and any calculation change must be validated against a reference source and have a test.</p>
+
+              <h3 class="anchor">Add a new zman</h3>
+              <p>A new zman touches four places, in order:</p>
+              <ol class="steps">
+                <li>Add the field to <code class="fileref" data-path="src/models/zmanim_row.py">src/models/zmanim_row.py</code> (with its type and a units comment).</li>
+                <li>Compute it in <code class="fileref" data-path="src/engine/zmanim_calculator.py">compute_for_day</code> and pass it into the <code>ZmanimRow(...)</code> construction.</li>
+                <li>Emit a column in <code class="fileref" data-path="src/engine/zmanim_data_builder.py">rows_to_df</code> (use <code>format_timestamp</code> or <code>format_duration</code>).</li>
+                <li>Add the column name to <code>ZMANIM_PLOT_COLUMNS</code> in <code class="fileref" data-path="src/visualization/zmanim_plotter.py">zmanim_plotter.py</code> and to <code>TODAYS_ZMANIM_DISPLAY_ORDER</code> in <code class="fileref" data-path="src/app.py">app.py</code> if it should show in the chart / today view.</li>
+                <li>Add a reference-validated test in <code class="fileref" data-path="tests/test_zmanim_calculator.py">tests/test_zmanim_calculator.py</code>.</li>
+              </ol>
+
+              <h3 class="anchor">Add the MGA opinion</h3>
+              <p>MGA is a different "day" definition, not a new engine. The cleanest path: add constructor params for the dawn/dusk minute offsets (e.g. 72), and a <code>shaah_zmanis</code> derivation that uses <code>sunrise − 72min</code> and <code>sunset + 72min</code> when MGA mode is on. Keep GRA as the default. All proportional formulas stay the same — only the hour length changes.</p>
+
+              <h3 class="anchor">Expose opinion controls in the UI</h3>
+              <p>Add sidebar widgets in <code class="fileref" data-path="src/app.py">app.py</code> (number inputs for each angle/offset), then build the calculator from those values instead of the default-constructed one. Because <code>ZmanimApp.__init__</code> already accepts an injected calculator, you can also wire this through dependency injection without changing the engine.</p>
+
+              <h3 class="anchor">Add a location method</h3>
+              <p>Extend <code class="fileref" data-path="src/location/location_resolver.py">LocationResolver.resolve</code> with a new branch (and a matching <code>try_parse_*</code> helper). Respect the boundary-validation rule and, for any network call, the throttle pattern used for Nominatim. Add branch tests in <code class="fileref" data-path="tests/test_location_resolver.py">tests/test_location_resolver.py</code> (mock the network).</p>
+
+              <div class="callout danger"><div class="callout-title">Do not</div><div class="callout-body">Don't change a depression angle, the <code>/ 12</code> proportional-hour divisor, or the candle/havdalah formulas without (a) confirming against MyZmanim.com / Chabad.org / KosherJava within the stated tolerance and (b) updating the reference test. This is a halachic tool — a silent off-by-a-few-minutes change can cause someone to miss a zman or mistime candle lighting.</div></div>
+              <div class="callout danger"><div class="callout-title">Do not</div><div class="callout-body">Don't add FastAPI endpoints, user accounts, Hebrew-calendar logic, or notifications in this phase — <code>CLAUDE.md</code> §2 explicitly defers those to Phase 2/3. Keep Phase 1 a single-process Streamlit app.</div></div>
+              <div class="callout tip"><div class="callout-title">Tip</div><div class="callout-body">After any change, run <code>ruff check .</code> and <code>pytest</code>. The coverage gate is 100% (<code>--cov-fail-under=100</code>), so new logic must come with tests or the suite fails locally and in CI.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="testing">
+          <details>
+            <summary><span class="sec-num">13</span><h2>Testing</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">pytest + pytest-cov, one test file per module, gated at 100% coverage. ~867 lines of tests across 9 files.</p>
+
+              <div class="filelist">
+                <div class="filecard"><code class="fileref" data-path="tests/conftest.py">tests/conftest.py</code><span class="filecard-desc">Location fixtures: NYC, Jerusalem, Sydney (covers N/S hemispheres and Israel).</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_zmanim_calculator.py">tests/test_zmanim_calculator.py</code><span class="filecard-desc">Reference equinox case, time/angle ordering, Shabbat-gating weekday sweep, southern-hemisphere winter.</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_location_resolver.py">tests/test_location_resolver.py</code><span class="filecard-desc">All resolve branches with mocked Nominatim (responses) and pgeocode; UTC fallback.</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_solar_angle_solver.py">tests/test_solar_angle_solver.py</code><span class="filecard-desc">Primitive ordering and timezone-awareness against real astral.</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_zmanim_data_builder.py">tests/test_zmanim_data_builder.py</code><span class="filecard-desc">Range validation, columns, duration/timestamp formatting.</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_zmanim_plotter.py">tests/test_zmanim_plotter.py</code><span class="filecard-desc">Trace count, minute conversion, HH:MM:SS formatter (incl. NaN).</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_app.py">tests/test_app.py</code><span class="filecard-desc">UI render path with stubbed collaborators.</span></div>
+                <div class="filecard"><code class="fileref" data-path="tests/test_location.py">tests/test_location.py</code> · <code class="fileref" data-path="tests/test_zmanim_row.py">test_zmanim_row.py</code> · <code class="fileref" data-path="tests/test_solar_primitives_utc.py">test_solar_primitives_utc.py</code><span class="filecard-desc">Dataclass construction / immutability.</span></div>
+              </div>
+
+              <h3 class="anchor">How to run</h3>
+              <ol class="steps">
+                <li><code>uv run pytest</code> — runs the suite with coverage and the 100% gate (from <code>addopts</code> in <code class="fileref" data-path="pyproject.toml">pyproject.toml</code>).</li>
+                <li><code>uv run pytest --cov-report=term-missing</code> — see exactly which lines aren't covered.</li>
+              </ol>
+
+              <div class="callout key"><div class="callout-title">Testing rules (from CLAUDE.md §9)</div><div class="callout-body"><strong>No mocking of solar calculations</strong> — test against real astral. Mocking <em>is</em> allowed for Nominatim HTTP (via <code>responses</code>) and pgeocode. Numerical comparisons use real tolerances (zmanim should match reference sources within 1–2 minutes). Every engine method should have a reference-validated case; edge cases to cover include polar regions, equinox, solstice, and the date line.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="ci">
+          <details>
+            <summary><span class="sec-num">14</span><h2>Build, CI &amp; deployment</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">CI is GitHub Actions (not GitLab, despite docs). Two workflows: continuous integration and a manual release/version-bump.</p>
+
+              <figure class="diagram">
+                <div class="mermaid">
+graph LR
+    Push["push / PR"] --> Lint["lint: ruff check"]
+    Lint --> Test["test: pytest --cov"]
+    Test --> Build["build: uv build -> dist artifact"]
+    Build --> Docker["docker-build: buildx (main/staging only)"]
+    Release["workflow_dispatch: bump"] --> Bump["uv version --bump"]
+    Bump --> Tag["commit + tag + push"]
+                </div>
+                <div class="mermaid-fallback"><figure class="code"><figcaption>diagram source · mermaid</figcaption><pre><code>graph LR
+    Push["push / PR"] --&gt; Lint["lint: ruff check"]
+    Lint --&gt; Test["test: pytest --cov"]
+    Test --&gt; Build["build: uv build -&gt; dist artifact"]
+    Build --&gt; Docker["docker-build: buildx (main/staging only)"]
+    Release["workflow_dispatch: bump"] --&gt; Bump["uv version --bump"]
+    Bump --&gt; Tag["commit + tag + push"]</code></pre></figure></div>
+                <figcaption>CI stages (sequential <code>needs:</code> chain) and the manual release path.</figcaption>
+              </figure>
+
+              <h3 class="anchor">CI pipeline</h3>
+              <p>Defined in <code class="fileref" data-path=".github/workflows/ci.yml">.github/workflows/ci.yml</code>, triggered on push/PR to <code>main</code>, <code>staging</code>, <code>dev</code> (and manual dispatch). Stages chain via <code>needs:</code>:</p>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Job</th><th>Command</th><th>Gate</th></tr></thead>
+                <tbody>
+                  <tr><td>lint</td><td><code>ruff check .</code></td><td>Fail on any lint error.</td></tr>
+                  <tr><td>test</td><td><code>pytest --cov=src --cov-report=...</code></td><td>Inherits the 100% gate from pyproject addopts.</td></tr>
+                  <tr><td>build</td><td><code>uv build</code></td><td>Wheel/sdist must build; uploads <code>dist/</code>.</td></tr>
+                  <tr><td>docker-build</td><td>buildx (no push)</td><td>Only on <code>main</code>/<code>staging</code>; GHA layer cache.</td></tr>
+                </tbody>
+              </table></div>
+
+              <h3 class="anchor">Release / versioning</h3>
+              <p><code class="fileref" data-path=".github/workflows/release.yml">.github/workflows/release.yml</code> is a manual (<code>workflow_dispatch</code>) job on <code>main</code> that runs <code>uv version --bump {patch|minor|major}</code>, commits the new <code class="fileref" data-path="pyproject.toml">pyproject.toml</code>, and tags+pushes. The <code>version</code> field there is the single source of truth (currently <code>0.2.0</code>). Per <code>CLAUDE.md</code> §11, contributors document the next version in <code class="fileref" data-path="docs/versions.md">docs/versions.md</code> but never hand-edit the version field — the release pipeline owns it.</p>
+
+              <h3 class="anchor">Docker image</h3>
+              <p><code class="fileref" data-path="Dockerfile">Dockerfile</code>: <code>python:3.13-slim</code> base, installs deps with <code>uv pip install --system -r pyproject.toml</code>, copies source, exposes 8501, and runs Streamlit headless. <code class="fileref" data-path=".dockerignore">.dockerignore</code> trims the build context.</p>
+
+              <div class="callout warn"><div class="callout-title">Doc vs. reality</div><div class="callout-body"><code>CLAUDE.md</code> §8 and the master plan describe a <code>.gitlab-ci.yml</code> with GitLab stages. The actual CI is GitHub Actions under <code class="fileref dir" data-path=".github/workflows/">.github/workflows/</code>; no <code>.gitlab-ci.yml</code> exists in the tree. The stage intent (lint → test → build → docker-build) matches; only the platform differs.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="roadmap">
+          <details>
+            <summary><span class="sec-num">15</span><h2>Roadmap &amp; phases</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">Three phases. Full details and gate criteria live in <code class="fileref" data-path="docs/ZMANIM_TRACKER_MASTER_PLAN.md">docs/ZMANIM_TRACKER_MASTER_PLAN.md</code>.</p>
+
+              <figure class="diagram">
+                <div class="mermaid">
+gantt
+    title Zmanim Tracker phases
+    dateFormat YYYY-MM-DD
+    axisFormat %b %Y
+    section Phase 1
+    Prototype (single file)   :done, p1a, 2025-01-01, 2025-03-09
+    OOP refactor              :active, p1b, 2026-04-13, 30d
+    Docker + CI               :p1c, after p1b, 14d
+    Coverage to 100%          :p1d, after p1b, 21d
+    MGA opinion               :p1e, after p1d, 7d
+    section Phase 2
+    FastAPI backend           :p2a, after p1e, 30d
+    React frontend            :p2b, after p2a, 30d
+    Hebrew calendar           :p2c, after p2a, 14d
+    Postgres + saved locs     :p2d, after p2a, 14d
+    section Phase 3
+    Notifications             :p3a, after p2c, 21d
+    Calendar sync             :p3b, after p2c, 21d
+    Shabbat PDF               :p3c, after p2b, 14d
+                </div>
+                <div class="mermaid-fallback"><figure class="code"><figcaption>diagram source · mermaid</figcaption><pre><code>gantt
+    title Zmanim Tracker phases
+    dateFormat YYYY-MM-DD
+    axisFormat %b %Y
+    section Phase 1
+    Prototype (single file)   :done, p1a, 2025-01-01, 2025-03-09
+    OOP refactor              :active, p1b, 2026-04-13, 30d
+    Docker + CI               :p1c, after p1b, 14d
+    Coverage to 100%          :p1d, after p1b, 21d
+    MGA opinion               :p1e, after p1d, 7d
+    section Phase 2
+    FastAPI backend           :p2a, after p1e, 30d
+    React frontend            :p2b, after p2a, 30d
+    Hebrew calendar           :p2c, after p2a, 14d
+    Postgres + saved locs     :p2d, after p2a, 14d
+    section Phase 3
+    Notifications             :p3a, after p2c, 21d
+    Calendar sync             :p3b, after p2c, 21d
+    Shabbat PDF               :p3c, after p2b, 14d</code></pre></figure></div>
+                <figcaption>Phase roadmap (from the master plan).</figcaption>
+              </figure>
+
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>Phase</th><th>Delivers</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td>1 — Streamlit app</td><td>GRA zmanim, 3 location methods, chart, CSV, Docker, 100% tests, MGA opinion</td><td>Active (MGA still pending)</td></tr>
+                  <tr><td>2 — Full-stack</td><td>FastAPI + React + Chart.js, Hebrew calendar (yom tov), Postgres saved locations, OpenAPI</td><td>Planned</td></tr>
+                  <tr><td>3 — Notifications</td><td>Push notifications, Google/Apple calendar .ics, Shabbat PDF, multi-location compare</td><td>Planned</td></tr>
+                </tbody>
+              </table></div>
+
+              <div class="callout note"><div class="callout-title">Forward-compat note</div><div class="callout-body">Phase 2 explicitly reuses the Phase 1 engine classes unchanged — which is why the engine is kept standalone (no Streamlit/pandas coupling in the calculator). The <code>SolarPrimitivesUTC</code> dataclass and the <code>asyncio</code> test config are seeds planted for that transition.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="glossary">
+          <details>
+            <summary><span class="sec-num">16</span><h2>Domain glossary</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">The halachic and astronomical terms a newcomer needs to read the code. Hebrew transliterations match the field names in <code class="fileref" data-path="src/models/zmanim_row.py">ZmanimRow</code>.</p>
+
+              <dl class="doc-dl">
+                <dt>Zman (pl. zmanim)</dt><dd>A halachic time boundary computed from the sun's position; governs when prayers and observances may/must be done.</dd>
+                <dt>Shaah zmanis (pl. shaos zmanios)</dt><dd>A "proportional hour" — daylight divided into 12 equal parts. Longer in summer, shorter in winter. The unit for time-based zmanim. Field: <code>shaah_zmanis</code>.</dd>
+                <dt>GRA</dt><dd>The Vilna Gaon's opinion: the halachic day runs sunrise→sunset. The default opinion implemented here.</dd>
+                <dt>MGA</dt><dd>Magen Avraham's opinion: the day runs from 72 minutes before sunrise to 72 minutes after sunset (a longer day). Planned, not yet implemented.</dd>
+                <dt>Alos / Alos HaShachar</dt><dd>Dawn — first light. Computed at a depression angle (16.9° astronomical, 12° nautical). Fields: <code>alos_astronomical_edge</code>, <code>alos_nautical_edge</code>.</dd>
+                <dt>Misheyakir</dt><dd>The earliest time one can recognize a familiar acquaintance — earliest for tallit and tefillin. ~10° depression. Field: <code>misheyakir</code>.</dd>
+                <dt>Hanetz / Sunrise (Netz HaChama)</dt><dd>Visible sunrise; the start of the GRA halachic day. Field: <code>sunrise</code>.</dd>
+                <dt>Krias Shema</dt><dd>The Shema recitation; its latest time (Sof Zman Krias Shema) is sunrise + 3 shaos. Field: <code>latest_shema</code>.</dd>
+                <dt>Tefillah / Shacharit</dt><dd>Morning prayer; its latest time is sunrise + 4 shaos. Field: <code>latest_shacharit</code>.</dd>
+                <dt>Chatzos</dt><dd>Halachic midday = solar noon (= sunrise + 6 shaos). Field: <code>chatzos</code> / <code>solar_noon</code>.</dd>
+                <dt>Mincha Gedolah</dt><dd>Earliest Mincha; half a shaah after chatzos (sunrise + 6.5 shaos). Field: <code>earliest_mincha</code>.</dd>
+                <dt>Mincha Ketana</dt><dd>Preferred Mincha (sunrise + 9.5 shaos). Field: <code>mincha_ketana</code>.</dd>
+                <dt>Plag HaMincha</dt><dd>"Half of Mincha" — 1.25 shaos before sunset (sunrise + 10.75 shaos); the boundary for early Maariv / early Shabbat acceptance. Field: <code>plag_hamincha</code>.</dd>
+                <dt>Shkiah / Sunset</dt><dd>Visible sunset; the end of the GRA day. Field: <code>sunset</code>.</dd>
+                <dt>Tzais / Tzais HaKochavim</dt><dd>Nightfall — three medium stars visible (~8.5° depression). Marks the end of the day for many purposes, including havdalah. Fields: <code>tzais_three_stars</code>, <code>tzais_civil_end</code>.</dd>
+                <dt>Chatzot HaLaila</dt><dd>Halachic midnight — the midpoint between sunset and the next sunrise. Field: <code>chatzot_halaila</code>.</dd>
+                <dt>Candle lighting (Hadlakas Neiros)</dt><dd>Lighting Shabbat candles Friday, customarily 18 minutes before sunset (40 in Jerusalem). Field: <code>candle_lighting</code>.</dd>
+                <dt>Havdalah</dt><dd>Ceremony ending Shabbat Saturday night, at/after tzais. Field: <code>shabbat_ends</code>.</dd>
+                <dt>Shitah (pl. shitot)</dt><dd>A halachic opinion. Each shitah is a configuration of the calculator, not a separate engine.</dd>
+                <dt>Minhag</dt><dd>A custom (e.g. the local candle-lighting offset).</dd>
+                <dt>Depression angle</dt><dd>How far the sun sits below the horizon, in degrees; the input to dawn/dusk astronomy. Higher angle = darker = farther from sunrise/sunset.</dd>
+                <dt>Solar noon</dt><dd>The instant the sun is highest (transits the meridian); equals chatzos.</dd>
+              </dl>
+            </div>
+          </details>
+        </section>
+
+        <section class="doc-section" id="file-index">
+          <details>
+            <summary><span class="sec-num">17</span><h2>Key files index</h2><span class="chevron"></span></summary>
+            <div class="sec-body">
+              <p class="lead-in">A single jump-off map of the files that matter most.</p>
+              <div class="table-wrap"><table class="doc-table">
+                <thead><tr><th>File</th><th>What it's for</th></tr></thead>
+                <tbody>
+                  <tr><td><code class="fileref" data-path="src/app.py">src/app.py</code></td><td>Streamlit UI + pipeline orchestration; the entry point.</td></tr>
+                  <tr><td><code class="fileref" data-path="src/engine/zmanim_calculator.py">src/engine/zmanim_calculator.py</code></td><td>The halachic engine — all zmanim formulas.</td></tr>
+                  <tr><td><code class="fileref" data-path="src/engine/solar_angle_solver.py">src/engine/solar_angle_solver.py</code></td><td>astral wrapper — solar primitives + depression dawn/dusk.</td></tr>
+                  <tr><td><code class="fileref" data-path="src/engine/zmanim_data_builder.py">src/engine/zmanim_data_builder.py</code></td><td>Date-range loop → formatted DataFrame.</td></tr>
+                  <tr><td><code class="fileref" data-path="src/location/location_resolver.py">src/location/location_resolver.py</code></td><td>lat/lon · ZIP · free-text → Location + timezone.</td></tr>
+                  <tr><td><code class="fileref" data-path="src/visualization/zmanim_plotter.py">src/visualization/zmanim_plotter.py</code></td><td>Plotly figure (time-of-day overlay).</td></tr>
+                  <tr><td><code class="fileref" data-path="src/models/zmanim_row.py">src/models/zmanim_row.py</code></td><td>The per-day output contract.</td></tr>
+                  <tr><td><code class="fileref" data-path="src/models/location.py">src/models/location.py</code></td><td>Location contract.</td></tr>
+                  <tr><td><code class="fileref" data-path="pyproject.toml">pyproject.toml</code></td><td>Deps, ruff/pytest config, version source of truth.</td></tr>
+                  <tr><td><code class="fileref" data-path="Dockerfile">Dockerfile</code> · <code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code></td><td>Container image + single-service compose.</td></tr>
+                  <tr><td><code class="fileref" data-path="run_zmanim_tracker.sh">run_zmanim_tracker.sh</code> · <code class="fileref" data-path="run_zmanim_tracker.bat">run_zmanim_tracker.bat</code></td><td>Launchers with the k/q/v/r loop.</td></tr>
+                  <tr><td><code class="fileref" data-path=".github/workflows/ci.yml">.github/workflows/ci.yml</code></td><td>CI: lint → test → build → docker-build.</td></tr>
+                  <tr><td><code class="fileref" data-path="CLAUDE.md">CLAUDE.md</code> · <code class="fileref" data-path="AGENTS.md">AGENTS.md</code></td><td>Dev guidelines, halachic rules, data contracts.</td></tr>
+                  <tr><td><code class="fileref" data-path="docs/ZMANIM_TRACKER_MASTER_PLAN.md">docs/ZMANIM_TRACKER_MASTER_PLAN.md</code></td><td>Phases, architecture decisions, gate criteria.</td></tr>
+                  <tr><td><code class="fileref" data-path="docs/status.md">docs/status.md</code> · <code class="fileref" data-path="docs/versions.md">docs/versions.md</code></td><td>Live state + changelog.</td></tr>
+                </tbody>
+              </table></div>
+            </div>
+          </details>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <button id="backTop" title="Back to top"><span class="ico"></span></button>
+
+  <footer class="doc-footer">
+    <p>Human-facing documentation for <strong>zmanim-tracker</strong> · generated 2026-06-07.
+    Styling and behavior come from the shared <code>../.doc-assets/</code> folder — keep that folder alongside the project for the page to render fully. Re-open after editing source to keep this guide in sync.</p>
+  </footer>
+
+  <script src="../.doc-assets/doc.js" defer></script>
+</body>
+</html>

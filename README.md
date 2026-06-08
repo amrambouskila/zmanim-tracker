@@ -88,7 +88,7 @@ uv sync
 uv run streamlit run zmanim_tracker.py
 ```
 
-The app runs at `http://localhost:8501` by default. Override with the `ZT_PORT` environment variable.
+The app runs at `http://localhost:5270` by default. Override with the `ZT_PORT` environment variable.
 
 ## Configuration
 

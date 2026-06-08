@@ -2,6 +2,8 @@
 
 ---
 
+<mandatory_workflow>
+
 > **MANDATORY WORKFLOW: READ THIS ENTIRE FILE BEFORE EVERY CHANGE.** Every time. No skimming, no assuming prior-session context carries over — it does not.
 >
 > **Why:** This project spans multiple sessions and months of development. Skipping the re-read produces decisions that contradict the architecture, duplicate existing patterns, break data contracts, or introduce tech debt that compounds.
@@ -14,7 +16,11 @@
 > 5. Read the source files you plan to modify — understand existing patterns first.
 > 6. Then implement, following the rules and contracts defined here.
 
+</mandatory_workflow>
+
 ---
+
+<critical_context>
 
 ## 0. Critical Context
 
@@ -29,7 +35,11 @@
 
 **Current phase:** Phase 1 — Streamlit single-user app. The prototype exists as a single file (`zmanim_tracker.py`). The immediate priority is OOP refactoring into proper module structure, containerization, and test coverage.
 
+</critical_context>
+
 ---
+
+<project_identity>
 
 ## 1. Project Identity
 
@@ -42,7 +52,11 @@
 - **Lint:** ruff (line-length 120, rules E, F, I, N, UP, ANN)
 - **Containerization:** Docker (python:3.13-slim)
 
+</project_identity>
+
 ---
+
+<phase_constraints>
 
 ## 2. Phase Constraints
 
@@ -72,7 +86,11 @@
 - Shabbat schedule PDF generation
 - Multi-location comparison
 
+</phase_constraints>
+
 ---
+
+<architecture>
 
 ## 3. Architecture & Code Rules
 
@@ -98,7 +116,11 @@ Every class, dataclass, and standalone utility function lives in its own file. T
 - No bare `except:` — always catch specific exception types
 - Nominatim rate limiting: enforce a minimum delay between requests (currently 0.8s)
 
+</architecture>
+
 ---
+
+<data_contracts>
 
 ## 4. Domain Model & Data Contracts
 
@@ -180,7 +202,11 @@ The main computation engine. Configurable via constructor parameters:
 | `shabbat_end_offset_min` | 0 | Additional minutes after tzais for Shabbat end |
 | `shabbat_end_basis` | `"tzais_three_stars"` | Which dusk time to use as havdalah base |
 
+</data_contracts>
+
 ---
+
+<domain_model>
 
 ## 5. Required Calculations & Halachic Notes
 
@@ -228,7 +254,11 @@ All zmanim should be validated against known sources:
 - **KosherJava ZmanimCalendar** — open-source Java reference implementation
 - For a specific validation: New York (40.7128, -74.0060) on 2024-03-20 (vernal equinox) — sunrise ~7:02 EDT, sunset ~7:13 EDT, shaah zmanis ~60.9 min
 
+</domain_model>
+
 ---
+
+<file_structure>
 
 ## 6. Target Directory Structure (Post-Refactor)
 
@@ -292,7 +322,11 @@ zmanim-tracker/
 
 **Note:** The current `zmanim_tracker.py` in the root is the Phase 1 prototype. It will be refactored into the `src/` structure above. Until refactoring is complete, both may coexist.
 
+</file_structure>
+
 ---
+
+<containerization>
 
 ## 7. Containerization
 
@@ -305,14 +339,18 @@ zmanim-tracker/
 
 ### docker-compose.yml
 - Single service: `zmanim-tracker`
-- Port: `${ZT_PORT:-8501}:8501`
+- Port: `${ZT_PORT:-5270}:8501`
 - Bind mount `./src` for dev hot-reload
 - `restart: unless-stopped`
 
 ### Launcher Scripts
 `run_zmanim_tracker.sh` and `run_zmanim_tracker.bat` implement the standard `[k]/[q]/[v]/[r]` shutdown/restart loop per the global CLAUDE.md launcher contract.
 
+</containerization>
+
 ---
+
+<ci_cd>
 
 ## 8. CI/CD Pipeline (.gitlab-ci.yml)
 
@@ -325,7 +363,11 @@ zmanim-tracker/
 
 All MRs must pass CI before merging.
 
+</ci_cd>
+
 ---
+
+<testing>
 
 ## 9. Testing Requirements
 
@@ -338,7 +380,11 @@ All MRs must pass CI before merging.
 - **Parametrize tests** for multiple locations and dates using `@pytest.mark.parametrize`
 - **Edge cases to test:** polar regions (midnight sun, polar night), equinox, solstice, date line crossing, invalid locations
 
+</testing>
+
 ---
+
+<git_policy>
 
 ## 10. Hands Off Git
 
@@ -349,7 +395,11 @@ When finishing a task, report:
 2. Whether changes are cohesive enough for one commit or should be split
 3. A suggested commit message (clearly labeled as suggestion)
 
+</git_policy>
+
 ---
+
+<versioning>
 
 ## 11. Versioning
 
@@ -361,7 +411,11 @@ When finishing a task, report:
 - Document next version in `docs/versions.md` — do NOT edit `pyproject.toml` version directly
 - Only one unreleased version at a time in `docs/versions.md`
 
+</versioning>
+
 ---
+
+<change_policy>
 
 ## 12. Change Policy
 
@@ -372,7 +426,11 @@ When finishing a task, report:
 5. Run tests after any calculation change
 6. Validate against reference zmanim sources when modifying the engine
 
+</change_policy>
+
 ---
+
+<definition_of_done>
 
 ## 13. Output & Completion Expectations
 
@@ -389,8 +447,15 @@ At the end of every non-trivial task, run through this checklist:
 9. **Forward-compatibility check** — Work aligns with Phase 2 requirements.
 10. **Git state** — Report changed files and suggest commit message.
 
+</definition_of_done>
+
 ---
+
+<closing_reminder>
 
 ## 14. Reminder
 
 **Before writing any code or making architectural decisions:** re-read this file, then `docs/ZMANIM_TRACKER_MASTER_PLAN.md`, then `docs/status.md`, then `docs/versions.md`, then the source files you plan to modify. Only then implement. Consistency across sessions is non-negotiable.
+
+
+</closing_reminder>

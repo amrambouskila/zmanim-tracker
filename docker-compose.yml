@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${ZT_PORT:-5270}:8501"
+      - "${ZT_PORT:-5270}:5270"
     volumes:
       - ./src:/app/src
     restart: unless-stopped

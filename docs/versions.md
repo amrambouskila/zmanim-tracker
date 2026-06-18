@@ -23,3 +23,7 @@
 - pyproject.toml with ruff and pytest configuration
 - .gitignore, .gitlab-ci.yml
 - README.md with project description and supported zmanim
+
+## v0.2.3
+
+- Container Streamlit port set symmetric to the published host port: the Docker image now serves on `5270` internally (`Dockerfile` `--server.port`/`EXPOSE`) and `docker-compose.yml` maps `${ZT_PORT:-5270}:5270`. Host port and all behavior unchanged. Workspace `PORT_ASSIGNMENTS.md` updated.

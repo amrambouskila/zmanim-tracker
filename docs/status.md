@@ -13,6 +13,7 @@
 ## What Was Just Built
 - Project infrastructure: CLAUDE.md, docs/, .claude/, Docker files, launcher scripts, CI/CD, pyproject.toml
 - All scaffolding files created per the standard project skeleton
+- Container Streamlit port made symmetric with the host port (`5270` inside the container; `docker-compose.yml` maps `${ZT_PORT:-5270}:5270`). Behavior unchanged.
 
 ## What's Next
 1. OOP refactor: split `zmanim_tracker.py` into `src/` module structure (one class per file)

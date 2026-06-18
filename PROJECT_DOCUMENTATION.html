@@ -838,8 +838,8 @@ sequenceDiagram
                 <div class="filecard"><code class="fileref dir" data-path="tests/">tests/</code><span class="filecard-desc">pytest suite, one file per source module; <code>conftest.py</code> holds NYC/Jerusalem/Sydney location fixtures.</span></div>
                 <div class="filecard"><code class="fileref dir" data-path="docs/">docs/</code><span class="filecard-desc">Master plan, <code>status.md</code>, <code>versions.md</code>.</span></div>
                 <div class="filecard"><code class="fileref" data-path="pyproject.toml">pyproject.toml</code><span class="filecard-desc">Project metadata, deps, ruff config, pytest/coverage config, hatchling build.</span></div>
-                <div class="filecard"><code class="fileref" data-path="Dockerfile">Dockerfile</code><span class="filecard-desc">python:3.13-slim image; installs deps via uv; runs Streamlit on 8501.</span></div>
-                <div class="filecard"><code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code><span class="filecard-desc">Single service; maps <code>${ZT_PORT:-5270}:8501</code>; bind-mounts <code>./src</code>.</span></div>
+                <div class="filecard"><code class="fileref" data-path="Dockerfile">Dockerfile</code><span class="filecard-desc">python:3.13-slim image; installs deps via uv; runs Streamlit on 5270.</span></div>
+                <div class="filecard"><code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code><span class="filecard-desc">Single service; maps <code>${ZT_PORT:-5270}:5270</code>; bind-mounts <code>./src</code>.</span></div>
                 <div class="filecard"><code class="fileref" data-path="run_zmanim_tracker.sh">run_zmanim_tracker.sh</code><span class="filecard-desc">macOS/Linux launcher with the k/q/v/r loop.</span></div>
                 <div class="filecard"><code class="fileref" data-path="run_zmanim_tracker.bat">run_zmanim_tracker.bat</code><span class="filecard-desc">Windows launcher (goto-label k/q/v/r loop).</span></div>
                 <div class="filecard"><code class="fileref dir" data-path=".github/workflows/">.github/workflows/</code><span class="filecard-desc">CI (<code>ci.yml</code>) and release (<code>release.yml</code>) GitHub Actions.</span></div>
@@ -1256,7 +1256,7 @@ flowchart TD
               <div class="table-wrap"><table class="doc-table">
                 <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
                 <tbody>
-                  <tr><td><code>ZT_PORT</code></td><td><code>5270</code></td><td>Host port mapped to the container's Streamlit 8501. Read by <code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code> and both launchers.</td></tr>
+                  <tr><td><code>ZT_PORT</code></td><td><code>5270</code></td><td>Host port mapped to the container's Streamlit 5270. Read by <code class="fileref" data-path="docker-compose.yml">docker-compose.yml</code> and both launchers.</td></tr>
                   <tr><td><code>STREAMLIT_BROWSER_GATHER_USAGE_STATS</code></td><td><code>false</code></td><td>Set in <code class="fileref" data-path="tests/conftest.py">tests/conftest.py</code> to silence Streamlit telemetry during tests.</td></tr>
                 </tbody>
               </table></div>
@@ -1306,7 +1306,7 @@ flowchart TD
               <div class="callout warn"><div class="callout-title">README drift</div><div class="callout-body"><code class="fileref" data-path="README.md">README.md</code> says <code>uv run streamlit run zmanim_tracker.py</code> — but that root file no longer exists after the refactor. The correct target is <code>src/app.py</code> (matching the <code>Dockerfile</code> CMD). The README's "default port 5270" applies to the Docker mapping; a bare local Streamlit run uses 8501 unless you pass <code>--server.port</code>.</div></div>
 
               <h3>What it exposes</h3>
-              <div class="flow"><span class="node">Host :5270</span><span class="arrow">→</span><span class="node">Container :8501</span><span class="arrow">→</span><span class="node">Streamlit</span></div>
+              <div class="flow"><span class="node">Host :5270</span><span class="arrow">→</span><span class="node">Container :5270</span><span class="arrow">→</span><span class="node">Streamlit</span></div>
             </div>
           </details>
         </section>
@@ -1413,7 +1413,7 @@ graph LR
               <p><code class="fileref" data-path=".github/workflows/release.yml">.github/workflows/release.yml</code> is a manual (<code>workflow_dispatch</code>) job on <code>main</code> that runs <code>uv version --bump {patch|minor|major}</code>, commits the new <code class="fileref" data-path="pyproject.toml">pyproject.toml</code>, and tags+pushes. The <code>version</code> field there is the single source of truth (currently <code>0.2.0</code>). Per <code>CLAUDE.md</code> §11, contributors document the next version in <code class="fileref" data-path="docs/versions.md">docs/versions.md</code> but never hand-edit the version field — the release pipeline owns it.</p>
 
               <h3 class="anchor">Docker image</h3>
-              <p><code class="fileref" data-path="Dockerfile">Dockerfile</code>: <code>python:3.13-slim</code> base, installs deps with <code>uv pip install --system -r pyproject.toml</code>, copies source, exposes 8501, and runs Streamlit headless. <code class="fileref" data-path=".dockerignore">.dockerignore</code> trims the build context.</p>
+              <p><code class="fileref" data-path="Dockerfile">Dockerfile</code>: <code>python:3.13-slim</code> base, installs deps with <code>uv pip install --system -r pyproject.toml</code>, copies source, exposes 5270, and runs Streamlit headless. <code class="fileref" data-path=".dockerignore">.dockerignore</code> trims the build context.</p>
 
               <div class="callout warn"><div class="callout-title">Doc vs. reality</div><div class="callout-body"><code>CLAUDE.md</code> §8 and the master plan describe a <code>.gitlab-ci.yml</code> with GitLab stages. The actual CI is GitHub Actions under <code class="fileref dir" data-path=".github/workflows/">.github/workflows/</code>; no <code>.gitlab-ci.yml</code> exists in the tree. The stage intent (lint → test → build → docker-build) matches; only the platform differs.</div></div>
             </div>

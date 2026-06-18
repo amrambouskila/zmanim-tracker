@@ -334,12 +334,12 @@ zmanim-tracker/
 - Base: `python:3.13-slim` (NOT Alpine — musl breaks scientific Python wheels)
 - Install deps from `pyproject.toml` via uv
 - Copy source
-- Expose port 8501 (Streamlit default)
-- CMD: `["streamlit", "run", "src/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]`
+- Expose port 5270 (container port set symmetric to the host port)
+- CMD: `["streamlit", "run", "src/app.py", "--server.port=5270", "--server.address=0.0.0.0", "--server.headless=true"]`
 
 ### docker-compose.yml
 - Single service: `zmanim-tracker`
-- Port: `${ZT_PORT:-5270}:8501`
+- Port: `${ZT_PORT:-5270}:5270`
 - Bind mount `./src` for dev hot-reload
 - `restart: unless-stopped`
 

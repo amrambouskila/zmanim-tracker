@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir uv && uv pip install --system --no-cache -r pypro
 
 COPY . .
 
-EXPOSE 8501
+EXPOSE 5270
 
-CMD ["streamlit", "run", "src/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+CMD ["streamlit", "run", "src/app.py", "--server.port=5270", "--server.address=0.0.0.0", "--server.headless=true"]

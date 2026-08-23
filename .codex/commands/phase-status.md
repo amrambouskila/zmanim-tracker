@@ -24,7 +24,9 @@ Verify each item by reading source files or running commands:
 - [ ] pytest coverage at 100% (`pytest --cov=src`)
 - [ ] At least 3 reference-validated test cases (different locations, seasons)
 - [ ] Docker builds and runs cleanly (`docker build .`)
-- [ ] CI pipeline defined (`.gitlab-ci.yml` exists and is valid)
+- [ ] CI pipeline defined (`.github/workflows/ci.yml` exists and is valid; stages lint, sast, test, coverage, build, docker-build)
+- [ ] SAST stage green — zero HIGH/CRITICAL findings; MEDIUM findings triaged with written justification
+- [ ] New input boundaries in this phase are injection-safe and documented in `AGENTS.md` `<security>`
 - [ ] GRA opinion implemented
 - [ ] MGA opinion implemented
 - [ ] `docs/status.md` and `docs/versions.md` current

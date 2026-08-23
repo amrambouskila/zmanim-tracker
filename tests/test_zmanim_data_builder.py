@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from src.engine.zmanim_calculator import ZmanimCalculatorAngleBased
-from src.engine.zmanim_data_builder import ZmanimDataBuilder
+from src.engine.zmanim_data_builder import MAX_RANGE_DAYS, ZmanimDataBuilder
 from src.models.location import Location
 from src.models.zmanim_row import ZmanimRow
 
@@ -106,3 +106,9 @@ def test_df_has_expected_columns(builder: ZmanimDataBuilder, nyc_location: Locat
     assert isinstance(df, pd.DataFrame)
     # Friday: candle_lighting non-empty
     assert df.iloc[0]["candle_lighting"] != ""
+
+
+def test_build_rejects_range_at_or_beyond_cap(builder: ZmanimDataBuilder, nyc_location: Location) -> None:
+    start = date(2024, 1, 1)
+    with pytest.raises(ValueError, match="fewer than"):
+        builder.build(nyc_location, start, start + timedelta(days=MAX_RANGE_DAYS))

@@ -8,6 +8,8 @@ from src.engine.zmanim_calculator import ZmanimCalculatorAngleBased
 from src.models.location import Location
 from src.models.zmanim_row import ZmanimRow
 
+MAX_RANGE_DAYS = 366
+
 
 class ZmanimDataBuilder:
     def __init__(self, zmanim_calculator: ZmanimCalculatorAngleBased) -> None:
@@ -16,6 +18,8 @@ class ZmanimDataBuilder:
     def build(self, loc: Location, start: date, end: date) -> pd.DataFrame:
         if end < start:
             raise ValueError("End date must be on/after start date.")
+        if (end - start).days >= MAX_RANGE_DAYS:
+            raise ValueError(f"Date range must span fewer than {MAX_RANGE_DAYS} days.")
 
         days: list[date] = []
         cur = start

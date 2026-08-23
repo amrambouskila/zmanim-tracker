@@ -6,7 +6,11 @@ import pytest
 import responses
 
 from src.location import location_resolver as resolver_module
-from src.location.location_resolver import NOMINATIM_URL, LocationResolver
+from src.location.location_resolver import (
+    NOMINATIM_MAX_RESPONSE_BYTES,
+    NOMINATIM_URL,
+    LocationResolver,
+)
 from src.models.location import Location
 
 
@@ -137,6 +141,33 @@ def test_resolve_nominatim_empty_response_raises(resolver: LocationResolver) -> 
 def test_resolve_nominatim_http_error_raises(resolver: LocationResolver) -> None:
     responses.add(responses.GET, NOMINATIM_URL, json={"error": "bad"}, status=500)
     with pytest.raises(Exception):  # requests.HTTPError
+        resolver.resolve("somewhere")
+
+
+@responses.activate
+def test_resolve_nominatim_rejects_oversized_response(resolver: LocationResolver) -> None:
+    # A body larger than the cap must be refused before it is parsed into memory.
+    padding = "x" * (NOMINATIM_MAX_RESPONSE_BYTES + 1)
+    responses.add(
+        responses.GET,
+        NOMINATIM_URL,
+        json=[{"lat": "1.0", "lon": "2.0", "display_name": padding}],
+        status=200,
+    )
+    with pytest.raises(ValueError, match="maximum allowed size"):
+        resolver.resolve("somewhere")
+
+
+@responses.activate
+def test_resolve_nominatim_does_not_follow_redirects(resolver: LocationResolver) -> None:
+    # NOMINATIM_URL is a constant, so a redirect can only point off-host: refuse it (SSRF).
+    responses.add(
+        responses.GET,
+        NOMINATIM_URL,
+        status=302,
+        headers={"Location": "https://attacker.example/search"},
+    )
+    with pytest.raises(ValueError, match="HTTP 302"):
         resolver.resolve("somewhere")
 
 

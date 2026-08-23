@@ -8,6 +8,7 @@ import streamlit as st
 
 from src.engine.zmanim_calculator import ZmanimCalculatorAngleBased
 from src.engine.zmanim_data_builder import ZmanimDataBuilder
+from src.export.neutralize_csv_formulas import neutralize_csv_formulas
 from src.location.location_resolver import LocationResolver
 from src.models.location import Location
 from src.visualization.zmanim_plotter import ZmanimPlotter
@@ -119,7 +120,7 @@ class ZmanimApp:
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Download Zmanim")
-        csv = df.to_csv(index=False).encode("utf-8")
+        csv = neutralize_csv_formulas(df).to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, file_name="zmanim.csv", mime="text/csv")
 
 

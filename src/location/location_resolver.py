@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -13,6 +14,9 @@ from src.models.location import Location
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_USER_AGENT = "Zmanim_Trackerv0.0.1"
 NOMINATIM_THROTTLE_SECONDS = 0.8
+NOMINATIM_TIMEOUT_SECONDS = 10.0
+NOMINATIM_MAX_RESPONSE_BYTES = 1_000_000
+NOMINATIM_CHUNK_BYTES = 8192
 
 
 class LocationResolver:
@@ -81,9 +85,27 @@ class LocationResolver:
 
         time.sleep(NOMINATIM_THROTTLE_SECONDS)
 
-        resp = requests.get(NOMINATIM_URL, headers=headers, params=params)
-        resp.raise_for_status()
-        data = resp.json()
+        # NOMINATIM_URL is a constant, so a redirect can only move the request off the intended
+        # host; refuse to follow it rather than re-resolving the target (SSRF).
+        resp = requests.get(
+            NOMINATIM_URL,
+            headers=headers,
+            params=params,
+            timeout=NOMINATIM_TIMEOUT_SECONDS,
+            allow_redirects=False,
+            stream=True,
+        )
+        if resp.status_code != requests.codes.ok:
+            raise ValueError(f"Nominatim returned HTTP {resp.status_code} for: {query}")
+
+        # Bound what is read into memory: a hostile or malfunctioning endpoint should not be able
+        # to stream an unbounded body into the process.
+        body = bytearray()
+        for chunk in resp.iter_content(chunk_size=NOMINATIM_CHUNK_BYTES):
+            body.extend(chunk)
+            if len(body) > NOMINATIM_MAX_RESPONSE_BYTES:
+                raise ValueError("Nominatim response exceeded the maximum allowed size")
+        data = json.loads(bytes(body))
         if not data:
             raise ValueError(f"Could not resolve location: {query}")
 

@@ -121,8 +121,9 @@ gantt
 1. OOP-refactored codebase (one class per file)
 2. Full test suite validating against reference zmanim sources
 3. Docker + docker-compose setup
-4. CI/CD pipeline (GitLab)
-5. MGA opinion support (in addition to GRA)
+4. CI/CD pipeline (GitHub Actions)
+5. Wire `sast` stage (Semgrep + CodeQL + `pip-audit` + gitleaks; Trivy in `docker-build`) — fails on HIGH/CRITICAL
+6. MGA opinion support (in addition to GRA)
 
 ### 5.3 Phase 1 Completion Gate
 - [ ] All classes in separate files under `src/`
@@ -131,7 +132,9 @@ gantt
 - [ ] pytest coverage at 100%
 - [ ] At least 3 reference-validated test cases (different locations, seasons)
 - [ ] Docker builds and runs cleanly
-- [ ] CI pipeline passes (lint, test, coverage, build, docker-build)
+- [ ] CI pipeline passes (lint, sast, test, coverage, build, docker-build)
+- [ ] SAST stage green — zero HIGH/CRITICAL findings; MEDIUM findings triaged with written justification
+- [ ] New input boundaries in this phase are injection-safe and documented in `CLAUDE.md` `<security>`
 - [ ] GRA and MGA opinions both supported
 - [ ] `docs/status.md` and `docs/versions.md` current
 - [ ] Launcher scripts work on macOS and Windows
@@ -161,6 +164,8 @@ gantt
 - [ ] Saved locations persist in PostgreSQL
 - [ ] Backend + frontend Docker containers orchestrated
 - [ ] API documented via OpenAPI/Swagger
+- [ ] SAST stage green — zero HIGH/CRITICAL findings; MEDIUM findings triaged with written justification
+- [ ] New input boundaries in this phase are injection-safe and documented in `CLAUDE.md` `<security>`
 
 ---
 
@@ -177,6 +182,8 @@ gantt
 - [ ] Calendar events created correctly
 - [ ] PDF renders all Shabbat times with correct Hebrew dates
 - [ ] Multi-location view functional
+- [ ] SAST stage green — zero HIGH/CRITICAL findings; MEDIUM findings triaged with written justification
+- [ ] New input boundaries in this phase are injection-safe and documented in `CLAUDE.md` `<security>`
 
 ---
 
@@ -208,6 +215,21 @@ Each opinion is a configuration of the calculator, not a separate engine.
 - `LocationResolver.resolve(str) -> Location` — never returns None; raises ValueError on failure
 - `ZmanimCalculatorAngleBased.compute_for_day(Location, date) -> ZmanimRow` — never returns None; raises on polar regions where sun doesn't set/rise
 - `ZmanimDataBuilder.build(Location, date, date) -> pd.DataFrame` — empty DataFrame if end < start (after validation error)
+
+### 8.5 Security
+Governed by global `<security>` (section 19) and `CLAUDE.md` section 8a `<security>`, which holds the authoritative input-boundary table.
+
+**SAST pipeline stage.** From the first pipeline onward, every phase's CI has a `sast` job between `lint` and `test` that fails on HIGH/CRITICAL findings. CI is GitHub Actions (`.github/workflows/ci.yml`; public project). Tool set: ruff `S` rules in `lint`; Semgrep (SARIF upload) + CodeQL + `pip-audit` + gitleaks in `sast`; Trivy in `docker-build`. Phase 2 adds `eslint-plugin-security` + `eslint-plugin-no-unsanitized` and `pnpm audit --audit-level=high` for the React frontend. The same scan set is reproducible locally (command list in `CLAUDE.md`).
+
+**Injection-safety principles per component:**
+- `LocationResolver` — the only untrusted-input entry point in Phase 1. Anchored regexes and range checks on lat/lon and ZIP; free text reaches Nominatim only as a URL-encoded query parameter against a constant host; responses are `json()`-decoded, `float()`-cast, range-validated, and `display_name` is treated as untrusted text. Timeout and throttle mandatory.
+- `ZoneInfo` / `TimezoneFinder` — timezone keys never come from user input; any future UI/API-supplied timezone is validated against `zoneinfo.available_timezones()`.
+- `ZmanimDataBuilder` — bounded date span to prevent resource exhaustion.
+- Streamlit UI / CSV export — escaped widgets only (`unsafe_allow_html=True` banned); formula-injection prefixing on exported string cells.
+- Phase 2 (FastAPI + SQLAlchemy + React) — SQLAlchemy bound parameters only, Pydantic at every request boundary, CSP in `nginx.conf`, no `dangerouslySetInnerHTML`, `httpx` with host allowlist replacing `requests`.
+- Phase 3 (calendar sync, push, PDF) — OAuth tokens from environment only; `.ics`/PDF generation from typed `ZmanimRow` data, never raw strings; outbound calendar API hosts allowlisted.
+
+**Supply chain.** Halachic correctness depends on `astral`, `timezonefinder`, and pgeocode's GeoNames download; `uv.lock` pinning, `pip-audit`, and reference-value tests are the controls.
 
 ---
 

@@ -49,7 +49,7 @@
 - **Stack:** Python 3.13+, Streamlit, astral, pandas, plotly, requests, pgeocode, timezonefinder, zoneinfo
 - **Package manager:** uv
 - **Testing:** pytest + pytest-cov (100% coverage target)
-- **Lint:** ruff (line-length 120, rules E, F, I, N, UP, ANN)
+- **Lint:** ruff (line-length 120, rules E, F, I, N, UP, ANN, S)
 - **Containerization:** Docker (python:3.13-slim)
 
 </project_identity>
@@ -316,7 +316,10 @@ zmanim-tracker/
 ├── run_zmanim_tracker.sh               # macOS/Linux launcher
 ├── run_zmanim_tracker.bat              # Windows launcher
 ├── .gitignore                          # Python + Docker + Claude + IDE
-├── .gitlab-ci.yml                      # CI/CD pipeline
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                      # CI pipeline (lint, sast, test, build, docker-build)
+│       └── release.yml                 # Manual release / version-bump pipeline
 └── .env                                # Local env vars (gitignored)
 ```
 
@@ -352,18 +355,78 @@ zmanim-tracker/
 
 <ci_cd>
 
-## 8. CI/CD Pipeline (.gitlab-ci.yml)
+## 8. CI/CD Pipeline (GitHub Actions — `.github/workflows/ci.yml`)
 
 **Stages (in order):**
-1. **lint** — `ruff check .` — fail on any error
-2. **test** — `pytest --cov=src --cov-report=term-missing` — fail on any test failure
-3. **coverage** — gated at 100% (enforced in pytest config)
-4. **build** — `uv build` — must succeed
-5. **docker-build** — `docker build .` — verify container builds
+1. **lint** — `ruff check .` — fail on any error (includes ruff `S` security rules)
+2. **sast** — Semgrep + CodeQL + `pip-audit` + gitleaks — fail on any HIGH/CRITICAL finding (see section 8a)
+3. **test** — `pytest --cov=src --cov-report=term-missing` — fail on any test failure
+4. **coverage** — gated at 100% (enforced in pytest config)
+5. **build** — `uv build` — must succeed
+6. **docker-build** — `docker build .` — verify container builds; Trivy scan of the image, fail on HIGH/CRITICAL
 
-All MRs must pass CI before merging.
+All PRs must pass CI before merging.
 
 </ci_cd>
+
+---
+
+<security>
+
+## 8a. Security — SAST Scanning & Injection Safety (Non-Negotiable)
+
+Per global section 19 `<security>`. Security is part of the Definition of Done for every task, not a later phase.
+
+### SAST scanning
+The CI pipeline (`.github/workflows/ci.yml`, GitHub Actions — this project is public) **MUST** have a `sast` job between `lint` and `test` (`needs: lint`; `test` gains `needs: sast`) that **fails on any HIGH/CRITICAL finding**. MEDIUM findings are triaged: fixed, or suppressed inline with a written justification. `continue-on-error: true` on any security job is non-compliant. The `sast` job is wired (CodeQL, Semgrep with SARIF upload, gitleaks, `pip-audit`) and Trivy runs in `docker-build`.
+
+Tool set for this repo (Python-only in Phase 1; the TypeScript rows activate when the Phase 2 React frontend is created):
+
+| Layer | Tool | Where |
+|-------|------|-------|
+| Lint-time security rules | ruff `S` family (flake8-bandit) — `select = ["E", "F", "I", "N", "UP", "ANN", "S"]` in `pyproject.toml`; `tests/**` additionally ignores `S101` | `lint` |
+| Primary SAST | Semgrep (`semgrep scan`, rulesets `p/default`, `p/owasp-top-ten`, `p/python`, `p/docker`; `p/typescript` + `p/react` from Phase 2) uploading SARIF via `github/codeql-action/upload-sarif` | `sast` |
+| SAST (GitHub-native) | `github/codeql-action` init → analyze, language `python` (+ `javascript-typescript` from Phase 2) | `sast` |
+| Dependency audit | `uv run pip-audit` (Phase 2 frontend: `pnpm audit --audit-level=high`) | `sast` |
+| Secret scanning | `gitleaks/gitleaks-action` (`gitleaks detect --no-git --redact` locally) | `sast` |
+| Container scanning | `aquasecurity/trivy-action`, `--severity HIGH,CRITICAL --exit-code 1` against the freshly built image | `docker-build` |
+| Frontend lint (Phase 2) | `eslint-plugin-security` + `eslint-plugin-no-unsanitized` | `lint` |
+
+Jobs that upload SARIF need `security-events: write`. Findings render under Security → Code scanning.
+
+**Local reproduction** (same set the pipeline runs; `/pre-commit` runs it and reports in its verdict table):
+```bash
+uv run ruff check .
+semgrep scan --config auto --error
+uv run pip-audit
+gitleaks detect --no-git --redact
+docker build -t zmanim-tracker . && trivy image --severity HIGH,CRITICAL --exit-code 1 zmanim-tracker
+```
+
+### Injection safety — input boundary inventory
+Every boundary below treats its input as hostile until it has crossed typed validation. All paths verified against `src/` at the time of writing.
+
+| Boundary | Where | Injection classes | Required defense |
+|----------|-------|-------------------|------------------|
+| Free-text location input | `src/app.py` `st.text_input` → `LocationResolver.resolve` (`src/location/location_resolver.py`) | Header/log injection, resource exhaustion, SSRF (query is forwarded to a third party) | Input is matched against anchored regexes (`latitude_longitude_regex`, `zipcode_regex`) before any parsing; lat/lon range-checked (`-90..90`, `-180..180`) and rejected with `ValueError`. Free text reaches Nominatim only as a URL-encoded `params={"q": ...}` value via `requests` — never string-concatenated into the URL; the host is the constant `NOMINATIM_URL`, never derived from input. Never echo raw input into log lines or headers without stripping `\r\n`. Cap input length before dispatch. |
+| Date range inputs | `src/app.py` `st.date_input` → `ZmanimDataBuilder.build` | Resource exhaustion | Builder validates `end >= start` and rejects spans of `MAX_RANGE_DAYS` (366) or more with `ValueError` before iterating, so a hostile range cannot pin the process. |
+| Nominatim HTTP response | `LocationResolver.resolve_nominatim` (`requests.get`, `resp.json()`) | Unsafe deserialization, SSRF via redirects, resource exhaustion, header injection (`display_name` becomes `Location.label`) | `resp.json()` only (never `pickle`/`eval`); `lat`/`lon` cast with `float()` and range-validated before building `Location`; `display_name` treated as untrusted text — rendered only through Streamlit's escaped widgets (`st.write`, `st.dataframe`, `st.metric`), never `unsafe_allow_html=True`; the call passes `timeout=NOMINATIM_TIMEOUT_SECONDS`, `allow_redirects=False` (the URL is a constant, so a redirect can only point off-host — a non-200 raises rather than being followed), and streams the body with a `NOMINATIM_MAX_RESPONSE_BYTES` (1 MB) cap enforced before `json.loads`. Both are covered by tests in `tests/test_location_resolver.py`. Throttle (`NOMINATIM_THROTTLE_SECONDS`) stays. |
+| pgeocode ZIP lookup | `LocationResolver.resolve_zip` | Path traversal (pgeocode downloads/caches a GeoNames dataset on first use), resource exhaustion | `zip_code` comes only from the anchored `\d{5}` regex group; the dataset cache directory is pgeocode's default, never input-derived. |
+| `ZoneInfo(tz_name)` | `LocationResolver.require_iana_timezone` | Path traversal (IANA key resolves to a file under the tzdata root) | `tz_name` comes only from `TimezoneFinder`, never from user input; `ZoneInfo` raises on unknown keys. Do not accept a timezone string from the UI or an API without validating it against `zoneinfo.available_timezones()`. |
+| CSV export | `src/app.py` `df.to_csv` → `st.download_button` | CSV/formula injection (`location_label` originates from Nominatim `display_name`) | `src/export/neutralize_csv_formulas.py` prefixes cells beginning with `=`, `+`, `-`, `@`, `\t`, `\r` in string columns with `'` before `df.to_csv` feeds the download button. |
+| Environment variables | `ZT_PORT` in `docker-compose.yml`, launcher scripts | Command injection (shell interpolation in `run_zmanim_tracker.{sh,bat}`) | Only `${VAR:-default}` substitution; port values are integers and never passed through `eval`. |
+| Container / image | `Dockerfile`, `docker-compose.yml` | Vulnerable base image, leaked secrets in layers | Trivy in `docker-build`; `.dockerignore` excludes `.env*`; no secrets baked into layers. |
+
+Out of scope in Phase 1 (no code exists): SQL (no database), XSS/CSP (no React frontend — Streamlit renders escaped widgets; `unsafe_allow_html=True` is banned), template injection, authentication, prompt injection (no LLM calls). When Phase 2 adds FastAPI + SQLAlchemy + React these classes become mandatory entries here: SQLAlchemy bound parameters only, no `text()` with f-strings; Pydantic models on every request; CSP headers in `nginx.conf`; no `dangerouslySetInnerHTML`; `requests` migrates to `httpx` with an explicit host allowlist for outbound calls.
+
+### Project-specific additions
+- **Halachic integrity is a security property.** A tampered dependency (`astral`, `timezonefinder`, pgeocode's GeoNames download) silently corrupts zmanim. `pip-audit` in `sast`, pinned `uv.lock`, and the reference-value tests in `tests/` are the controls — never bypass the lockfile in CI or the Dockerfile.
+- **Nominatim usage policy.** One request per second max, identifying `User-Agent`, no bulk geocoding. Exceeding it gets the app's IP banned, which is a denial of service on the location boundary.
+- Every new input boundary (Phase 2 endpoints, Phase 3 calendar/push integrations) adds a row to the table above before its code merges.
+
+The task-completion checklist in section 13 includes a **Security check** item.
+
+</security>
 
 ---
 
@@ -444,8 +507,9 @@ At the end of every non-trivial task, run through this checklist:
 6. **Halachic-accuracy check** — Any calculation change validated against reference sources. State which source and what tolerance.
 7. **Docs check** — `status.md` and `versions.md` updated.
 8. **Test check** — Tests added or updated for any logic change.
-9. **Forward-compatibility check** — Work aligns with Phase 2 requirements.
-10. **Git state** — Report changed files and suggest commit message.
+9. **Security check** — Local SAST clean (ruff `S`, Semgrep, pip-audit, gitleaks); every touched input boundary names its injection class(es) and defense; `<security>` section updated if a boundary was added.
+10. **Forward-compatibility check** — Work aligns with Phase 2 requirements.
+11. **Git state** — Report changed files and suggest commit message.
 
 </definition_of_done>
 

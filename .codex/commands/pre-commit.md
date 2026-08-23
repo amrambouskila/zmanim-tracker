@@ -15,8 +15,9 @@ Before anything else:
 
 ### Step 1: Build Pipeline
 Run in sequence:
-1. `ruff check .` — lint check
-2. `pytest --cov=src --cov-report=term-missing` — tests + coverage
+1. `ruff check .` — lint check (includes ruff `S` security rules)
+2. SAST — `semgrep scan --config auto --error`, `uv run pip-audit`, `gitleaks detect --no-git --redact`; FAIL on any HIGH/CRITICAL finding, MEDIUM findings need a written justification
+3. `pytest --cov=src --cov-report=term-missing` — tests + coverage
 
 Report: PASS/FAIL for each.
 
@@ -36,20 +37,27 @@ For any changes to engine code (`src/engine/`):
 - Shaah zmanis calculation correct for the opinion
 - At least one test validates against a reference source
 
-### Step 4: Documentation
+### Step 4: Security Boundaries
+For any change touching `src/app.py`, `src/location/`, `src/engine/zmanim_data_builder.py`, or `src/export/`:
+- Each touched input boundary names its injection class(es) and defense per `AGENTS.md` section 8a `<security>`
+- New boundaries have a row in the `<security>` boundary table
+
+### Step 5: Documentation
 - `docs/status.md` reflects current state
 - `docs/versions.md` updated with changes (semver computed from pyproject.toml)
 
-### Step 5: Unified Report
+### Step 6: Unified Report
 ```
 === PRE-COMMIT REPORT ===
 
 Lint:         PASS/FAIL
+SAST:         PASS/FAIL (HIGH/CRITICAL: N, MEDIUM triaged: YES/NO)
 Tests:        PASS/FAIL (N passed, M failed)
 Coverage:     XX% (target: 100%)
 Type Safety:  PASS/FAIL
 OOP Rule:     PASS/FAIL
 Halachic:     PASS/FAIL/N/A
+Security:     PASS/FAIL/N/A (boundaries documented)
 Docs:         Updated: YES/NO
 
 VERDICT: READY TO COMMIT / NOT READY (list blockers)

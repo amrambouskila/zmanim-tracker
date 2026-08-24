@@ -1,5 +1,18 @@
 # Zmanim Tracker — Version History
 
+## v0.2.3 — 2026-08-24 (unreleased)
+
+### CI hardening + dependency remediation (2026-08-24)
+
+- **Semgrep invocation corrected.** The job used `semgrep ci` with `--severity` and `--error`, which that subcommand does not accept — it exits 2 with a usage error before scanning. Switched to `semgrep scan`, which supports both.
+- **Release workflow hardened against script injection.** `${{ inputs.bump }}` and `${{ steps.bump.outputs.new_version }}` were interpolated directly into `run:` blocks, where the value becomes shell code. Both now pass through `env:` and are read as quoted shell variables. The input is `type: choice`, so this was not exploitable today — it is the pattern that breaks the moment the input type changes.
+- **Base-image security patches in the Dockerfile.** The Debian slim bases ship a `util-linux` that Trivy flags HIGH (CVE-2026-53612..53615, fixed upstream in 2.41.5). Measured directly: `python:3.13-slim` carries 38 fixable HIGH/CRITICAL, `3.12-slim` 36, `3.11-slim` 38, while `nginx:alpine` is clean. These come from the base layer, so an `apt-get upgrade` step is required even where nothing else installs them.
+- **`.trivyignore` added** for two findings with no in-image remediation: `CVE-2025-47273` (setuptools 70.3.0) and `GHSA-6v7p-g79w-8964` (msgpack 1.1.2). Both come from pip's vendored manifest in the base image, not from project dependencies — and setuptools 70.3.0 is not even installed (`find` finds nothing; the image ships 84.x). Upgrading pip does not rewrite that manifest. Each entry carries its justification inline.
+- **Dockerfile `missing-user` suppressed with written justification**, per global CLAUDE.md section 9 (non-root is not required for personal local-dev containers). The nginx images additionally cannot run as non-root without the unprivileged image and a port change. Revisit before any deployment beyond localhost.
+- **Nominatim SSRF and response-size hardening.** `resolve_nominatim` now passes `allow_redirects=False` (the URL is a module constant, so a redirect can only move the request off-host; a non-200 raises instead of being followed) and streams the body with a `NOMINATIM_MAX_RESPONSE_BYTES` (1 MB) cap enforced before `json.loads`. The `<security>` boundary table had claimed redirect rejection that no code implemented. Two tests cover both defenses; the suite stays at 89 tests / 100% coverage.
+
+---
+
 ## v0.1.0 — Initial Streamlit Prototype
 
 - Single-file implementation (`zmanim_tracker.py`) with all core classes

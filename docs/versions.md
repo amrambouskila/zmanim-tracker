@@ -30,6 +30,14 @@ across 5 packages (`gitpython` 3.1.47, `idna` 3.13, `pillow` 12.2.0, `tornado` 6
 - **Dockerfile installs from the lockfile** via `uv export --locked` rather than `-r pyproject.toml`,
   for the same reason: the image previously shipped whatever resolved at build time, which is not
   the set `pip-audit` gates.
+- **The Semgrep gate ignores `nosemgrep`-suppressed results.** Semgrep 1.175 records inline-suppressed
+  findings in its SARIF output with `"suppressions": [{"kind": "inSource"}]` while omitting them from
+  its console count — so the Dockerfile's justified `missing-user` suppression appeared as a SARIF
+  result and failed the gate, even though the scan reported `Findings: 0 (0 blocking)`. The gate now
+  counts only results with an empty `suppressions` array, and reports the suppressed count separately.
+  (Semgrep 1.174, which the `semgrep/semgrep` container ships, drops them from SARIF entirely — the
+  version skew between that image and the `uvx semgrep` the pipeline runs is why local verification
+  passed while CI failed. Verified against a clean clone at the CI commit using `uvx`.)
 - **Semgrep no longer conflates a crash with a finding.** `--error` plus
   `|| echo "SEMGREP_FAILED=1" >> $GITHUB_ENV` mapped *any* nonzero exit — network failure, bad
   ruleset, registry outage — onto "security finding", and if Semgrep died before writing the SARIF

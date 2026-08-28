@@ -27,7 +27,7 @@ against the current tree:
 | Job | Command run locally | Result |
 |-----|--------------------|--------|
 | lint | `uv sync --locked --all-extras && uv run ruff check .` | clean (ruff 0.16.5) |
-| sast — Semgrep | CI flags via `semgrep/semgrep` image | 0 findings, exit 0 (186 rules / 52 files) |
+| sast — Semgrep | CI flags via `uvx semgrep`, clean clone at the CI commit | 0 unsuppressed findings (1 `nosemgrep`-suppressed), exit 0 |
 | sast — gitleaks | `gitleaks detect --redact` (git mode, 19 commits) | no leaks |
 | sast — audit | `uv export --locked … \| uvx pip-audit --strict -r` | no known vulnerabilities |
 | test | `uv run pytest --cov-report=xml --junitxml=…` | 89 passed, 100% coverage, JUnit written |
@@ -36,6 +36,10 @@ against the current tree:
 
 CodeQL is the one step that cannot be reproduced locally; its configuration is unchanged apart from
 the v3→v4 action bump.
+
+**Verify Semgrep through `uvx`, not the `semgrep/semgrep` image.** The two ship different versions
+and disagree on whether `nosemgrep`-suppressed findings appear in SARIF output. Reproducing the
+pipeline's Semgrep step against the container image gives a false pass.
 
 ## Security
 

@@ -2,6 +2,62 @@
 
 ## v0.2.3 — 2026-08-24 (unreleased)
 
+### CI pipeline restored to green end-to-end (2026-08-28)
+
+The `sast` job had been failing on its "Dependency audit" step: `pip-audit` reported 46 advisories
+across 5 packages (`gitpython` 3.1.47, `idna` 3.13, `pillow` 12.2.0, `tornado` 6.5.5, `urllib3` 2.6.3).
+
+- **Root cause: a stale `uv.lock`.** The lockfile had not been regenerated since v0.2.0 and pinned
+  every one of those versions. `uv lock --upgrade` resolves them all: `idna` → 3.19, `pillow` → 12.3.0,
+  `urllib3` → 2.7.0, and `streamlit` 1.56.0 → 1.62.0, which drops `gitpython` and `tornado` from the
+  tree entirely (it moved to `starlette`/`uvicorn`). Also bumped: `pandas` 3.0.5, `plotly` 7.0.0,
+  `numpy` 2.5.2, `pyarrow` 25.0.1, `ruff` 0.16.5, `pytest` 9.1.1, `timezonefinder` 8.3.0.
+  Verified on the upgraded set: `ruff check` clean, 89 tests passing at 100% coverage, `uv build` clean.
+- **Dependency-audit scope corrected again.** `uv run --with pip-audit pip-audit` audits the *installed
+  environment*, which means (a) pip-audit's own dependency tree is audited alongside the project's,
+  (b) `uv run` silently re-locks on drift rather than failing, and (c) `uv run` does not prune
+  extraneous packages, so a stale venv is audited as if it were the lock. Measured locally: with the
+  refreshed lock in place, that command still reported `gitpython`/`tornado` because both were left
+  behind in `.venv`. Replaced with `uv export --locked --all-extras --no-emit-project --no-hashes`
+  into `uvx pip-audit --strict -r`, which audits exactly the locked tree. `--locked` turns lock drift
+  into a pipeline failure (verified: exit 2 on an edited `pyproject.toml`); `--no-emit-project` removes
+  the unauditable `zmanim-tracker` self-reference, which lets `--strict` gate on skipped packages.
+- **Every job now installs from the lockfile.** `lint`, `test` and `build` used
+  `uv pip install --system -r pyproject.toml`, resolving the dependency ranges fresh on each run —
+  so CI tested one set of versions while the audit gated a different one, and an upstream release
+  could turn the pipeline red with no commit. All three now use `uv sync --locked --all-extras`.
+  This is what `CLAUDE.md` 8a already required ("never bypass the lockfile in CI or the Dockerfile").
+- **Dockerfile installs from the lockfile** via `uv export --locked` rather than `-r pyproject.toml`,
+  for the same reason: the image previously shipped whatever resolved at build time, which is not
+  the set `pip-audit` gates.
+- **Semgrep no longer conflates a crash with a finding.** `--error` plus
+  `|| echo "SEMGREP_FAILED=1" >> $GITHUB_ENV` mapped *any* nonzero exit — network failure, bad
+  ruleset, registry outage — onto "security finding", and if Semgrep died before writing the SARIF
+  the following `upload-sarif` step failed on a missing file. `--error` is dropped so a crash fails
+  its own step, findings are counted out of the SARIF, and the upload is guarded by `hashFiles`.
+  Verified: `semgrep scan` with the CI flags returns 0 findings, exit 0 (186 rules, 52 files).
+- **Trivy's ignore file is now passed explicitly** (`trivyignores: .trivyignore`). Measured: without
+  it the scan exits 1 on the two documented pip-vendored findings. The job had never actually proven
+  the default lookup, because no run has reached `docker-build` since `.trivyignore` was added.
+- **`dorny/test-reporter` is skipped on forked-PR runs**, where the read-only token makes its check-run
+  creation fail and take the `test` job down with it.
+- **`aquasecurity/trivy-action@0.28.0` was an unresolvable ref**, so `docker-build` would have died at
+  "Set up job" — with the misleading message `unable to find version 0.28.0` — the moment the pipeline
+  got past `sast`. That repository publishes `v`-prefixed tags only (`git ls-remote … refs/tags/0.28.0`
+  is empty; the sole bare tag in its entire history is `0.35.0`), and the bare form was copied from an
+  old README. Never caught because no run has reached `docker-build` since the Trivy step was added on
+  2026-08-23. Now `@v0.36.0`.
+- **Actions moved off the Node 20 runtime**, which the runner now force-migrates and warns on every
+  run: `checkout` v4→v7, `setup-python` v5→v7, `upload-artifact` v4→v7, `codeql-action` v3→v4
+  (v3 is EOL December 2026), `gitleaks-action` v2→v3, `test-reporter` v1→v3, `setup-buildx-action`
+  v3→v4, `build-push-action` v6→v7. Each of those majors is a runtime bump with no change to the
+  inputs used here. `astral-sh/setup-uv@v10.0.1` replaces `pip install uv` for a pinned, cached uv —
+  pinned to the exact tag because that project stops publishing moving major tags at `v7`, so `@v10`
+  does not resolve even though `v10.0.1` is the current release.
+- **Every `uses:` ref in both workflows is now checked with `git ls-remote`** rather than inferred from
+  `releases/latest`. The two bugs above are the same mistake — a release *name* is not necessarily a
+  usable *ref*.
+
 ### CI hardening + dependency remediation (2026-08-24)
 
 - **Semgrep invocation corrected.** The job used `semgrep ci` with `--severity` and `--error`, which that subcommand does not accept — it exits 2 with a usage error before scanning. Switched to `semgrep scan`, which supports both.

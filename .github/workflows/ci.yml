@@ -15,15 +15,13 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - run: |
-          pip install uv
-          uv pip install --system -r pyproject.toml
-          uv pip install --system ".[dev]"
-      - run: ruff check .
+      - uses: astral-sh/setup-uv@v10.0.1
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff check .
 
   sast:
     runs-on: ubuntu-latest
@@ -33,38 +31,52 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - run: |
-          pip install uv
-          uv pip install --system -r pyproject.toml
-      - uses: github/codeql-action/init@v3
+      - uses: astral-sh/setup-uv@v10.0.1
+
+      - uses: github/codeql-action/init@v4
         with:
           languages: python
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: codeql
+
+      # `--error` is deliberately absent: without it semgrep exits nonzero only when it fails to
+      # RUN, so a crash or registry outage fails this step loudly instead of being reported as a
+      # security finding. Findings are gated below, off the SARIF that was actually produced.
       - name: Semgrep
-        run: |
-          uvx semgrep scan --config auto --config p/owasp-top-ten --config p/python --config p/docker --severity ERROR --error --sarif --output semgrep.sarif || echo "SEMGREP_FAILED=1" >> "$GITHUB_ENV"
-      - uses: github/codeql-action/upload-sarif@v3
-        if: ${{ !cancelled() }}
+        run: >
+          uvx semgrep scan
+          --config auto --config p/owasp-top-ten --config p/python --config p/docker
+          --severity ERROR --sarif --output semgrep.sarif
+      - uses: github/codeql-action/upload-sarif@v4
+        if: ${{ !cancelled() && hashFiles('semgrep.sarif') != '' }}
         with:
           sarif_file: semgrep.sarif
           category: semgrep
       - name: Fail on Semgrep findings
-        run: test -z "${SEMGREP_FAILED:-}"
-      - uses: gitleaks/gitleaks-action@v2
+        run: |
+          findings=$(jq '[.runs[]?.results[]?] | length' semgrep.sarif)
+          echo "Semgrep ERROR-severity findings: ${findings}"
+          test "${findings}" -eq 0
+
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Audits the resolved lockfile, exported to a requirements file, rather than an installed
+      # environment: `uv run --with pip-audit` would have audited pip-audit's own dependency tree
+      # alongside the project's, and would silently re-lock instead of failing on a stale lock.
+      # `--locked` makes lock drift a pipeline failure; `--strict` makes an unauditable package one.
       - name: Dependency audit
-        # `uvx pip-audit` would audit pip-audit's own isolated tool environment, not this
-        # project's dependencies. `uv run` audits the locked project environment.
-        run: uv run --with pip-audit pip-audit
+        run: |
+          uv export --locked --all-extras --no-emit-project --no-hashes -o requirements-audit.txt
+          uvx pip-audit --strict -r requirements-audit.txt
 
   test:
     runs-on: ubuntu-latest
@@ -74,18 +86,17 @@ jobs:
       checks: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - run: |
-          pip install uv
-          uv pip install --system -r pyproject.toml
-          uv pip install --system ".[dev]"
-      - run: pytest --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml --junitxml=junit-test.xml
+      - uses: astral-sh/setup-uv@v10.0.1
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest --cov-report=xml:coverage.xml --junitxml=junit-test.xml
       - name: Publish test report
-        uses: dorny/test-reporter@v1
-        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@v3
+        # Forked-PR runs get a read-only token, so the reporter cannot create its check run there.
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
         with:
           name: test tests
           path: junit-test.xml
@@ -95,15 +106,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-      - run: |
-          pip install uv
-          uv pip install --system -r pyproject.toml
+      - uses: astral-sh/setup-uv@v10.0.1
       - run: uv build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -113,9 +122,9 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: false
@@ -123,9 +132,12 @@ jobs:
           tags: zmanim-tracker:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: zmanim-tracker:ci
           severity: HIGH,CRITICAL
           exit-code: "1"
           ignore-unfixed: true
+          # Explicit: without the ignore file the two pip-vendored findings documented in it are
+          # HIGH and this job exits 1.
+          trivyignores: .trivyignore

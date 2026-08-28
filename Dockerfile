@@ -9,8 +9,14 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir uv && uv pip install --system --no-cache -r pyproject.toml
+# Installed from uv.lock, not from pyproject.toml's ranges: the image, the `test` job and the
+# `sast` dependency audit must all resolve to the same versions, or the audit gates a set of
+# packages the image never ships. `--locked` fails the build if the lock has drifted.
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv export --locked --no-emit-project --no-hashes -o requirements.txt \
+    && uv pip install --system --no-cache -r requirements.txt \
+    && rm requirements.txt
 
 COPY . .
 

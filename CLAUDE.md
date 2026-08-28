@@ -387,8 +387,8 @@ Tool set for this repo (Python-only in Phase 1; the TypeScript rows activate whe
 | Lint-time security rules | ruff `S` family (flake8-bandit) — `select = ["E", "F", "I", "N", "UP", "ANN", "S"]` in `pyproject.toml`; `tests/**` additionally ignores `S101` | `lint` |
 | Primary SAST | Semgrep (`semgrep scan`, rulesets `p/default`, `p/owasp-top-ten`, `p/python`, `p/docker`; `p/typescript` + `p/react` from Phase 2) uploading SARIF via `github/codeql-action/upload-sarif` | `sast` |
 | SAST (GitHub-native) | `github/codeql-action` init → analyze, language `python` (+ `javascript-typescript` from Phase 2) | `sast` |
-| Dependency audit | `uv run pip-audit` (Phase 2 frontend: `pnpm audit --audit-level=high`) | `sast` |
-| Secret scanning | `gitleaks/gitleaks-action` (`gitleaks detect --no-git --redact` locally) | `sast` |
+| Dependency audit | `uv export --locked --all-extras --no-emit-project --no-hashes` piped into `uvx pip-audit --strict -r` — audits the locked tree, not an installed env (Phase 2 frontend: `pnpm audit --audit-level=high`) | `sast` |
+| Secret scanning | `gitleaks/gitleaks-action` (`gitleaks detect --redact` locally — git mode, see below) | `sast` |
 | Container scanning | `aquasecurity/trivy-action`, `--severity HIGH,CRITICAL --exit-code 1` against the freshly built image | `docker-build` |
 | Frontend lint (Phase 2) | `eslint-plugin-security` + `eslint-plugin-no-unsanitized` | `lint` |
 
@@ -396,12 +396,17 @@ Jobs that upload SARIF need `security-events: write`. Findings render under Secu
 
 **Local reproduction** (same set the pipeline runs; `/pre-commit` runs it and reports in its verdict table):
 ```bash
+uv sync --locked --all-extras
 uv run ruff check .
-semgrep scan --config auto --error
-uv run pip-audit
-gitleaks detect --no-git --redact
-docker build -t zmanim-tracker . && trivy image --severity HIGH,CRITICAL --exit-code 1 zmanim-tracker
+semgrep scan --config auto --config p/owasp-top-ten --config p/python --config p/docker --severity ERROR --sarif --output semgrep.sarif
+uv export --locked --all-extras --no-emit-project --no-hashes -o requirements-audit.txt && uvx pip-audit --strict -r requirements-audit.txt
+gitleaks detect --redact
+docker build -t zmanim-tracker . && trivy image --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed --ignorefile .trivyignore zmanim-tracker
 ```
+
+`gitleaks` runs in git mode, not `--no-git`: `--no-git` walks untracked directories, so a local `.venv/`
+produces false positives (17, all in vendored JS source maps) that CI — which checks out a clean tree —
+never sees.
 
 ### Injection safety — input boundary inventory
 Every boundary below treats its input as hostile until it has crossed typed validation. All paths verified against `src/` at the time of writing.
